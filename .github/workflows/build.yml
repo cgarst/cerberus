@@ -1,0 +1,212 @@
+name: Build
+
+on:
+  workflow_call:
+    inputs:
+      channel:
+        description: Build channel (alpha, beta, or stable)
+        required: true
+        type: string
+      version:
+        description: Version string for release artifacts
+        required: true
+        type: string
+      version_code:
+        description: Monotonic build number (Android versionCode / iOS buildNumber)
+        required: true
+        type: string
+
+jobs:
+  pc-service:
+    name: PC Service (Windows x64)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: CerberusExpo/package-lock.json
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build CerberusService and run tests
+        shell: pwsh
+        run: ./scripts/build.ps1
+
+      - name: Build Inno Setup installer
+        shell: pwsh
+        run: |
+          $iscc = Get-Command iscc -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source
+          if (-not $iscc) {
+            $defaultPath = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+            if (Test-Path $defaultPath) {
+              $iscc = $defaultPath
+            }
+          }
+          if (-not $iscc) {
+            choco install innosetup -y --no-progress
+            $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          }
+          if (-not (Test-Path $iscc)) {
+            throw "ISCC.exe not found"
+          }
+          & $iscc "/DMyAppVersion=${{ inputs.version }}" installer\CerberusService.iss
+          if ($LASTEXITCODE -ne 0) {
+            throw "Inno Setup failed with exit code $LASTEXITCODE"
+          }
+
+      - name: Stage PC Service artifacts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist-pc | Out-Null
+          Copy-Item build\CerberusServiceSetup.exe "dist-pc\CerberusServiceSetup-${{ inputs.version }}-win-x64.exe"
+          Copy-Item build\CerberusService.exe "dist-pc\CerberusService-${{ inputs.version }}-win-x64.exe"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pc-service
+          path: dist-pc/*
+          if-no-files-found: error
+
+  android:
+    name: Android App
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: CerberusExpo/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install dependencies and typecheck
+        working-directory: CerberusExpo
+        run: |
+          npm ci
+          npm run typecheck
+
+      - name: Restore release keystore
+        env:
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          test -n "$ANDROID_KEYSTORE_B64" || { echo "::error::Missing ANDROID_KEYSTORE_B64 secret"; exit 1; }
+          test -n "$ANDROID_KEYSTORE_PASSWORD" || { echo "::error::Missing ANDROID_KEYSTORE_PASSWORD secret"; exit 1; }
+          test -n "$ANDROID_KEY_ALIAS" || { echo "::error::Missing ANDROID_KEY_ALIAS secret"; exit 1; }
+          test -n "$ANDROID_KEY_PASSWORD" || { echo "::error::Missing ANDROID_KEY_PASSWORD secret"; exit 1; }
+          echo "$ANDROID_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          echo "ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+
+      - name: Set Android version and prebuild
+        working-directory: CerberusExpo
+        env:
+          APP_VERSION: ${{ inputs.version }}
+          ANDROID_VERSION_CODE: ${{ inputs.version_code }}
+        run: |
+          node -e '
+            const fs = require("fs");
+            const appJson = JSON.parse(fs.readFileSync("app.json", "utf8"));
+            appJson.expo.version = process.env.APP_VERSION;
+            appJson.expo.android = appJson.expo.android || {};
+            appJson.expo.android.versionCode = Number(process.env.ANDROID_VERSION_CODE);
+            fs.writeFileSync("app.json", JSON.stringify(appJson, null, 2) + "\n");
+          '
+          npx expo prebuild --platform android --non-interactive
+
+      - name: Build signed release APK
+        working-directory: CerberusExpo/android
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Stage Android APK
+        run: |
+          mkdir -p dist-android
+          cp CerberusExpo/android/app/build/outputs/apk/release/app-release.apk \
+            "dist-android/Cerberus-${{ inputs.version }}-android.apk"
+
+      - name: Clean up release keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release.jks"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: dist-android/*
+          if-no-files-found: error
+
+  ios:
+    name: iOS App (Unsigned)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: CerberusExpo/package-lock.json
+
+      - name: Install dependencies and typecheck
+        working-directory: CerberusExpo
+        run: |
+          npm ci
+          npm run typecheck
+
+      - name: Set iOS version and prebuild
+        working-directory: CerberusExpo
+        env:
+          APP_VERSION: ${{ inputs.version }}
+          IOS_BUILD_NUMBER: ${{ inputs.version_code }}
+        run: |
+          node -e '
+            const fs = require("fs");
+            const appJson = JSON.parse(fs.readFileSync("app.json", "utf8"));
+            appJson.expo.version = process.env.APP_VERSION;
+            appJson.expo.ios = appJson.expo.ios || {};
+            appJson.expo.ios.buildNumber = String(process.env.IOS_BUILD_NUMBER);
+            fs.writeFileSync("app.json", JSON.stringify(appJson, null, 2) + "\n");
+          '
+          npx expo prebuild --platform ios --non-interactive
+
+      - name: Build unsigned iOS archive
+        working-directory: CerberusExpo/ios
+        run: |
+          xcodebuild \
+            -workspace Cerberus.xcworkspace \
+            -scheme Cerberus \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/Cerberus.xcarchive \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            archive
+
+      - name: Package unsigned IPA
+        run: |
+          mkdir -p dist-ios Payload
+          cp -R CerberusExpo/ios/build/Cerberus.xcarchive/Products/Applications/*.app Payload/
+          zip -qr "dist-ios/Cerberus-${{ inputs.version }}-ios-unsigned.ipa" Payload
+          rm -rf Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios
+          path: dist-ios/*
+          if-no-files-found: error

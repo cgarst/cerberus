@@ -1,0 +1,88 @@
+{
+  "Port": 8090,
+  "BearerToken": "",
+  "Profiles": [
+    {
+      "Id": "office",
+      "Name": "Office",
+      "IsDefault": true,
+      "Monitor": "Odyssey G80SD",
+      "Audio": "Sound Blaster Play! 3",
+      "Width": 3840,
+      "Height": 2160,
+      "RefreshRate": 240,
+      "Hdr": true,
+      "ConsoleEnvironmentMode": "off",
+      "CloseApps": [],
+      "Integrations": {
+        "steam": {
+          "bigPicture": false,
+          "closeBigPicture": true
+        },
+        "appLauncher": {
+          "launch": [
+            {
+              "path": "C:\\Program Files\\Hue Sync\\HueSync.exe",
+              "closeWindowWhenReady": true,
+              "windowTitle": "Philips Hue Sync"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "Id": "living-room",
+      "Name": "Living Room",
+      "IsDefault": false,
+      "Monitor": "LG TV SSCR2",
+      "Audio": "LG TV SSCR2",
+      "Width": 3840,
+      "Height": 2160,
+      "RefreshRate": 120,
+      "Hdr": true,
+      "ConsoleEnvironmentMode": "virtual-desktop",
+      "CloseApps": [
+        "Telegram",
+        "HueSync"
+      ],
+      "Integrations": {
+        "appLauncher": {
+          "launch": [
+            "steam://open/bigpicture"
+          ]
+        }
+      }
+    }
+  ],
+  "ControllerTriggerProfileId": "living-room",
+  "Integrations": {
+    "steam": {
+      "enabled": true,
+      "closeMode": "exit-bigpicture"
+    },
+    "appLauncher": {
+      "enabled": true
+    }
+  },
+  "VerifyRetryCount": 1,
+  "SteamPath": "C:\\Program Files (x86)\\Steam\\steam.exe",
+  "SteamCloseMode": "exit-bigpicture",
+  "DisplaySettleDelayMs": 1500,
+  "WakeGuardSeconds": 15,
+  "IdleRevertMinutes": 45,
+  "IdleSleepAfterRevert": false,
+  "ConsoleEnvironmentOnLivingRoom": true,
+  "ConsoleEnvironmentMode": "virtual-desktop",
+  "StreamingConsoleEnvironmentMode": "",
+  "StreamingRevertConsoleEnvironmentOnEnd": true,
+  "StreamingAutoDetectEnabled": true,
+  "LivingRoomDesktopColorEnabled": false,
+  "LivingRoomDesktopColor": "#000000",
+  "XboxReceiverTriggerEnabled": true,
+  "XboxReceiverDevicePrefixes": [
+    "USB\\VID_045E&PID_02FE",
+    "USB\\VID_045E&PID_02E6"
+  ],
+  "ControllerPollIntervalMs": 1000,
+  "LogDirectory": "logs"
+}

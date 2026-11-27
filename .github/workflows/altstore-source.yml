@@ -1,0 +1,46 @@
+name: Update AltStore Source
+
+on:
+  workflow_call:
+
+jobs:
+  update-source:
+    name: Update SideStore / AltStore source.json
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Generate source.json from releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node .github/scripts/generate-altstore-source.mjs > "$RUNNER_TEMP/source.json"
+
+      - name: Publish source.json to altstore branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if git ls-remote --exit-code --heads origin altstore >/dev/null 2>&1; then
+            git fetch origin altstore
+            git checkout -B altstore origin/altstore
+          else
+            git checkout --orphan altstore
+            git rm -rf . >/dev/null 2>&1 || true
+          fi
+
+          cp "$RUNNER_TEMP/source.json" source.json
+          git add source.json
+
+          if git diff --cached --quiet; then
+            echo "source.json is already up to date."
+            exit 0
+          fi
+
+          git commit -m "Update SideStore/AltStore source.json"
+          git push origin altstore

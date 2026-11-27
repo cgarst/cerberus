@@ -1,0 +1,43 @@
+{
+  "expo": {
+    "name": "Cerberus",
+    "slug": "cerberus",
+    "scheme": "cerberus",
+    "platforms": ["ios", "android", "web"],
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.cerberus.app",
+      "infoPlist": {
+        "NSLocalNetworkUsageDescription": "Cerberus needs local network access to communicate with CerberusService and send Wake-on-LAN packets."
+      }
+    },
+    "android": {
+      "package": "com.cerberus.app",
+      "permissions": [
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
+      ],
+      "adaptiveIcon": {
+        "backgroundColor": "#171d25",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "output": "static",
+      "bundler": "metro",
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-status-bar",
+      "./plugins/withAndroidSigning"
+    ]
+  }
+}

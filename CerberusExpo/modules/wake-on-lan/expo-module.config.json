@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["WakeOnLanModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.wakeonlan.WakeOnLanModule"]
+  }
+}

@@ -1,0 +1,511 @@
+<Window x:Class="RoomAgent.SetupWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Cerberus Configuration"
+        Width="960"
+        MinWidth="860"
+        MinHeight="500"
+        SizeToContent="Height"
+        UseLayoutRounding="True"
+        WindowStartupLocation="CenterScreen">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Grid Grid.Row="0" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                <TextBlock Text="Cerberus Setup &amp; Profiles"
+                           FontSize="18"
+                           FontWeight="SemiBold" />
+                <StackPanel Orientation="Horizontal" Margin="0,4,0,0" VerticalAlignment="Center">
+                    <TextBlock Text="Web Access:" Opacity="0.72" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <TextBlock x:Name="HeaderDnsText" Opacity="0.85" VerticalAlignment="Center" />
+                    <Button Content="Open"
+                            Padding="8,2"
+                            Margin="6,0,0,0"
+                            ToolTip="Open web address in browser"
+                            Click="OpenDnsBtn_Click" />
+                    <Button Content="Copy"
+                            Padding="8,2"
+                            Margin="4,0,0,0"
+                            Click="CopyDnsBtn_Click" />
+                    <Button Content="QR"
+                            Padding="8,2"
+                            Margin="4,0,0,0"
+                            ToolTip="Show QR code for DNS web address"
+                            Click="QrDnsBtn_Click" />
+                </StackPanel>
+            </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <Button x:Name="RefreshBtn"
+                        Content="Refresh Devices"
+                        Padding="14,6"
+                        Margin="0,0,8,0"
+                        Click="RefreshBtn_Click" />
+                <Button x:Name="SaveBtn"
+                        Content="Save Config"
+                        Padding="16,6"
+                        Style="{DynamicResource AccentButtonStyle}"
+                        Click="SaveBtn_Click" />
+            </StackPanel>
+        </Grid>
+
+        <!-- Main Tabs -->
+        <TabControl Grid.Row="1">
+            <!-- Room Profiles Tab -->
+            <TabItem Header="Room Profiles">
+                <Grid Margin="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="260" MinWidth="220" />
+                        <ColumnDefinition Width="16" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Left: Profiles List + Actions -->
+                    <Grid Grid.Column="0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <ListBox x:Name="ProfilesList"
+                                 Grid.Row="0"
+                                 Margin="0,0,0,10"
+                                 SelectionChanged="ProfilesList_SelectionChanged" />
+                        <WrapPanel Grid.Row="1" Orientation="Horizontal">
+                            <Button x:Name="AddProfileBtn"
+                                    Content="+ Add"
+                                    Padding="12,5"
+                                    Margin="0,0,6,6"
+                                    Click="AddProfileBtn_Click" />
+                            <Button x:Name="DeleteProfileBtn"
+                                    Content="Delete"
+                                    Padding="12,5"
+                                    Margin="0,0,6,6"
+                                    Click="DeleteProfileBtn_Click" />
+                            <Button x:Name="SetDefaultBtn"
+                                    Content="Set Default"
+                                    Padding="12,5"
+                                    Margin="0,0,6,6"
+                                    Click="SetDefaultBtn_Click" />
+                            <Button x:Name="ActivateProfileBtn"
+                                    Content="Activate"
+                                    Padding="12,5"
+                                    Margin="0,0,0,6"
+                                    Style="{DynamicResource AccentButtonStyle}"
+                                    Click="ActivateProfileBtn_Click" />
+                        </WrapPanel>
+                    </Grid>
+
+                    <!-- Right: Profile Editor -->
+                    <ScrollViewer x:Name="ProfilesScrollViewer" Grid.Column="2" VerticalScrollBarVisibility="Auto" Padding="0,0,8,0">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="180" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Profile Name" VerticalAlignment="Center" Margin="0,6,12,6" />
+                            <TextBox x:Name="ProfileNameBox" Grid.Row="0" Grid.Column="1" Margin="0,4" TextChanged="ProfileNameBox_TextChanged" />
+
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Target Display" VerticalAlignment="Center" Margin="0,6,12,6" />
+                            <ComboBox x:Name="ProfileMonitorCombo" Grid.Row="1" Grid.Column="1" Margin="0,4" SelectionChanged="ProfileMonitorCombo_SelectionChanged" />
+
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Target Audio Device" VerticalAlignment="Center" Margin="0,6,12,6" />
+                            <ComboBox x:Name="ProfileAudioCombo" Grid.Row="2" Grid.Column="1" Margin="0,4" SelectionChanged="ProfileAudioCombo_SelectionChanged" />
+
+                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Resolution" VerticalAlignment="Center" Margin="0,6,12,6" />
+                            <ComboBox x:Name="ProfileResolutionCombo" Grid.Row="3" Grid.Column="1" Margin="0,4" SelectionChanged="ProfileResolutionCombo_SelectionChanged" />
+
+                            <TextBlock Grid.Row="4" Grid.Column="0" Text="Refresh Rate" VerticalAlignment="Center" Margin="0,6,12,6" />
+                            <ComboBox x:Name="ProfileRefreshCombo" Grid.Row="4" Grid.Column="1" Margin="0,4" SelectionChanged="ProfileRefreshCombo_SelectionChanged" />
+
+                            <TextBlock Grid.Row="5" Grid.Column="0" Text="HDR Mode" VerticalAlignment="Center" Margin="0,6,12,6" />
+                            <ComboBox x:Name="ProfileHdrCombo" Grid.Row="5" Grid.Column="1" Margin="0,4" SelectionChanged="ProfileHdrCombo_SelectionChanged" />
+
+                            <TextBlock Grid.Row="6" Grid.Column="0" Text="Console Environment Mode" VerticalAlignment="Center" Margin="0,6,12,6" />
+                            <ComboBox x:Name="ProfileConsoleEnvironmentCombo" Grid.Row="6" Grid.Column="1" Margin="0,4" SelectionChanged="ProfileConsoleEnvironmentCombo_SelectionChanged" />
+
+                            <TextBlock Grid.Row="7" Grid.Column="0" Text="Close Apps" VerticalAlignment="Top" Margin="0,8,12,6" />
+                            <Grid Grid.Row="7" Grid.Column="1" Margin="0,4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ListBox x:Name="ProfileCloseAppsList"
+                                         Grid.Column="0"
+                                         Height="92"
+                                         SelectionMode="Extended"
+                                         SelectionChanged="ProfileCloseAppsList_SelectionChanged"
+                                         KeyDown="ProfileCloseAppsList_KeyDown" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Top" Margin="8,0,0,0">
+                                    <Button x:Name="AddCloseAppBtn"
+                                            Content="+ Add..."
+                                            Padding="12,5"
+                                            Margin="0,0,0,6"
+                                            Click="AddCloseAppBtn_Click" />
+                                    <Button x:Name="RemoveCloseAppBtn"
+                                            Content="Remove"
+                                            Padding="12,5"
+                                            Click="RemoveCloseAppBtn_Click" />
+                                </StackPanel>
+                            </Grid>
+
+                            <TextBlock Grid.Row="8" Grid.Column="0" Text="Launch Apps" VerticalAlignment="Top" Margin="0,8,12,6" />
+                            <Grid Grid.Row="8" Grid.Column="1" Margin="0,4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <ListBox x:Name="ProfileLaunchAppsList"
+                                         Grid.Row="0"
+                                         Grid.Column="0"
+                                         Height="92"
+                                         SelectionMode="Extended"
+                                         SelectionChanged="ProfileLaunchAppsList_SelectionChanged"
+                                         KeyDown="ProfileLaunchAppsList_KeyDown" />
+                                <StackPanel Grid.Row="0" Grid.Column="1" VerticalAlignment="Top" Margin="8,0,0,0">
+                                    <Button x:Name="AddLaunchAppBtn"
+                                            Content="+ Add..."
+                                            Padding="12,5"
+                                            Margin="0,0,0,6"
+                                            Click="AddLaunchAppBtn_Click" />
+                                    <Button x:Name="RemoveLaunchAppBtn"
+                                            Content="Remove"
+                                            Padding="12,5"
+                                            Click="RemoveLaunchAppBtn_Click" />
+                                </StackPanel>
+                                <CheckBox x:Name="LaunchAppCloseWindowChk"
+                                          Grid.Row="1"
+                                          Grid.Column="0"
+                                          Content="Close window when ready (keep in tray)"
+                                          Margin="0,6,0,0"
+                                          IsEnabled="False"
+                                          Checked="LaunchAppCloseWindowChk_Changed"
+                                          Unchecked="LaunchAppCloseWindowChk_Changed" />
+                            </Grid>
+                        </Grid>
+                    </ScrollViewer>
+                </Grid>
+            </TabItem>
+
+            <!-- Global Settings Tab -->
+            <TabItem Header="Global Settings">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="8" Padding="0,0,8,0">
+                    <StackPanel MaxWidth="720" HorizontalAlignment="Left">
+                        <!-- Network & Triggers -->
+                        <GroupBox Header="Network &amp; Triggers"
+                                  Margin="0,0,0,10"
+                                  Padding="10,8">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="208" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Web Port" VerticalAlignment="Center" Margin="0,4,12,4" />
+                                <TextBox x:Name="PortBox" Grid.Row="0" Grid.Column="1" Margin="0,4" TextChanged="PortBox_TextChanged" />
+                                <TextBlock Grid.Row="1"
+                                           Grid.Column="1"
+                                           Text="Local HTTP API and web UI port (1–65535). Restart service or re-save to apply port changes."
+                                           Opacity="0.72"
+                                           FontSize="11.5"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,0,8" />
+
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Controller Trigger Profile" VerticalAlignment="Center" Margin="0,4,12,4" />
+                                <ComboBox x:Name="ControllerTriggerCombo" Grid.Row="2" Grid.Column="1" Margin="0,4" />
+                                <TextBlock Grid.Row="3"
+                                           Grid.Column="1"
+                                           Text="Profile activated automatically when an Xbox controller connects."
+                                           Opacity="0.72"
+                                           FontSize="11.5"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,0,8" />
+
+                                <TextBlock Grid.Row="4" Grid.Column="0" Text="Access Password" VerticalAlignment="Center" Margin="0,4,12,4" />
+                                <DockPanel Grid.Row="4" Grid.Column="1" Margin="0,4">
+                                    <Button x:Name="ClearAuthBtn"
+                                            DockPanel.Dock="Right"
+                                            Content="Disable"
+                                            Margin="6,0,0,0"
+                                            Padding="10,4"
+                                            Click="ClearAuthBtn_Click" />
+                                    <Button x:Name="RevokeTokensBtn"
+                                            DockPanel.Dock="Right"
+                                            Content="Revoke Devices"
+                                            Margin="6,0,0,0"
+                                            Padding="10,4"
+                                            Click="RevokeTokensBtn_Click" />
+                                    <PasswordBox x:Name="AuthPasswordBox" VerticalContentAlignment="Center" />
+                                </DockPanel>
+                                <TextBlock x:Name="AuthStatusText"
+                                           Grid.Row="5"
+                                           Grid.Column="1"
+                                           Opacity="0.88"
+                                           FontSize="11.5"
+                                           FontWeight="SemiBold"
+                                           Margin="0,0,0,2" />
+                                <TextBlock Grid.Row="6"
+                                           Grid.Column="1"
+                                           Text="Optional. When set, web/mobile clients must enter this password once to receive a persistent access token. Leave blank to keep the current password."
+                                           Opacity="0.72"
+                                           FontSize="11.5"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,0,2" />
+                            </Grid>
+                        </GroupBox>
+
+                        <!-- Display & Console Environment -->
+                        <GroupBox Header="Display &amp; Console Environment"
+                                  Margin="0,0,0,10"
+                                  Padding="10,8">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="208" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Display Settle Delay (ms)" VerticalAlignment="Center" Margin="0,4,12,4" />
+                                <TextBox x:Name="DisplaySettleBox" Grid.Row="0" Grid.Column="1" Margin="0,4" />
+                                <TextBlock Grid.Row="1"
+                                           Grid.Column="1"
+                                           Text="Delay after switching to a non-default display before applying Console Environment and running Launch Apps (0–30000 ms)."
+                                           Opacity="0.72"
+                                           FontSize="11.5"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,0,8" />
+
+                                <CheckBox x:Name="RunIntegrationsOnConsoleEnvironmentChk"
+                                          Grid.Row="2"
+                                          Grid.Column="1"
+                                          Content="Run Launch Apps on Console Environment Switch"
+                                          Margin="0,2,0,2" />
+                                <TextBlock Grid.Row="3"
+                                           Grid.Column="1"
+                                           Text="When enabled, runs the active profile's Launch Apps when Console Environment Mode is turned on without switching profiles."
+                                           Opacity="0.72"
+                                           FontSize="11.5"
+                                           TextWrapping="Wrap"
+                                           Margin="22,0,0,8" />
+
+                                <TextBlock Grid.Row="4"
+                                           Grid.Column="0"
+                                           Text="GameStream Console Mode"
+                                           VerticalAlignment="Center"
+                                           Margin="0,4,12,4" />
+                                <ComboBox x:Name="StreamingConsoleEnvironmentCombo"
+                                          Grid.Row="4"
+                                          Grid.Column="1"
+                                          Margin="0,4" />
+                                <TextBlock Grid.Row="5"
+                                           Grid.Column="1"
+                                           Text="Console Environment applied when a GameStream session starts (Inherit keeps the active profile's mode)."
+                                           Opacity="0.72"
+                                           FontSize="11.5"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,0,8" />
+
+                                <CheckBox x:Name="StreamingAutoDetectChk"
+                                          Grid.Row="6"
+                                          Grid.Column="1"
+                                          Content="Auto-detect GameStream start and end"
+                                          Margin="0,2,0,2" />
+                                <TextBlock Grid.Row="7"
+                                           Grid.Column="1"
+                                           Text="Automatically triggers GameStream Console Mode when Sunshine/Apollo starts streaming (or use POST /api/streaming/start)."
+                                           Opacity="0.72"
+                                           FontSize="11.5"
+                                           TextWrapping="Wrap"
+                                           Margin="22,0,0,8" />
+
+                                <CheckBox x:Name="StreamingRevertConsoleEnvironmentChk"
+                                          Grid.Row="8"
+                                          Grid.Column="1"
+                                          Content="Revert Console Environment when GameStream ends"
+                                          Margin="0,2,0,2" />
+                                <TextBlock Grid.Row="9"
+                                           Grid.Column="1"
+                                           Text="Restores the previous profile's Console Environment when the streaming session finishes."
+                                           Opacity="0.72"
+                                           FontSize="11.5"
+                                           TextWrapping="Wrap"
+                                           Margin="22,0,0,2" />
+                            </Grid>
+                        </GroupBox>
+
+                        <!-- Power & Idle Safeguards -->
+                        <GroupBox Header="Power &amp; Idle Safeguards"
+                                  Margin="0,0,0,10"
+                                  Padding="10,8">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="208" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0"
+                                           Grid.Column="0"
+                                           Text="Wake Guard (seconds)"
+                                           VerticalAlignment="Center"
+                                           Margin="0,4,12,4" />
+                                <TextBox x:Name="WakeGuardBox"
+                                         Grid.Row="0"
+                                         Grid.Column="1"
+                                         Margin="0,4" />
+                                <TextBlock Grid.Row="1"
+                                           Grid.Column="1"
+                                           Text="Seconds after waking from sleep in a non-default profile before reverting to the default profile if no API call arrives (0 = disabled; skipped while streaming)."
+                                           Opacity="0.72"
+                                           FontSize="11.5"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,0,8" />
+
+                                <TextBlock Grid.Row="2"
+                                           Grid.Column="0"
+                                           Text="Idle Revert Timeout (minutes)"
+                                           VerticalAlignment="Center"
+                                           Margin="0,4,12,4" />
+                                <TextBox x:Name="IdleRevertBox"
+                                         Grid.Row="2"
+                                         Grid.Column="1"
+                                         Margin="0,4" />
+                                <TextBlock Grid.Row="3"
+                                           Grid.Column="1"
+                                           Text="Minutes of no mouse, keyboard, or controller activity before reverting from a non-default profile to the default profile (0 = disabled; paused while streaming)."
+                                           Opacity="0.72"
+                                           FontSize="11.5"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,0,10" />
+
+                                <CheckBox x:Name="IdleSleepChk"
+                                          Grid.Row="4"
+                                          Grid.Column="1"
+                                          Content="Sleep PC after idle revert"
+                                          Margin="0,2,0,2" />
+                                <TextBlock Grid.Row="5"
+                                           Grid.Column="1"
+                                           Text="When enabled, puts the PC to sleep immediately after reverting to the default profile due to inactivity. Has no effect if Idle Revert Timeout is 0 or already on the default profile."
+                                           Opacity="0.72"
+                                           FontSize="11.5"
+                                           TextWrapping="Wrap"
+                                           Margin="22,0,0,2" />
+                            </Grid>
+                        </GroupBox>
+
+                        <!-- Steam Integration -->
+                        <GroupBox Header="Steam Integration"
+                                  Margin="0,0,0,4"
+                                  Padding="10,8">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="208" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Steam Executable Path" VerticalAlignment="Center" Margin="0,4,12,4" />
+                                <Grid Grid.Row="0" Grid.Column="1" Margin="0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="SteamPathBox" Grid.Column="0" />
+                                    <Button Content="Browse..." Grid.Column="1" Padding="12,5" Margin="8,0,0,0" Click="BrowseSteamBtn_Click" />
+                                </Grid>
+                                <TextBlock Grid.Row="1"
+                                           Grid.Column="1"
+                                           Text="Path to steam.exe used when profiles or integrations launch or close Steam."
+                                           Opacity="0.72"
+                                           FontSize="11.5"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,0,8" />
+
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Steam Close Mode" VerticalAlignment="Center" Margin="0,4,12,4" />
+                                <ComboBox x:Name="SteamCloseModeCombo" Grid.Row="2" Grid.Column="1" Margin="0,4" />
+                                <TextBlock Grid.Row="3"
+                                           Grid.Column="1"
+                                           Text="Action taken for Steam when leaving a profile that uses Steam."
+                                           Opacity="0.72"
+                                           FontSize="11.5"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,0,2" />
+                            </Grid>
+                        </GroupBox>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+
+        <!-- Status Bar -->
+        <TextBlock x:Name="StatusLabel"
+                   Grid.Row="2"
+                   Margin="2,10,0,0"
+                   Text="Ready." />
+    </Grid>
+</Window>

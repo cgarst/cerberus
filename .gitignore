@@ -1,0 +1,8 @@
+build/
+bin/
+obj/
+*.exe
+*.pdb
+*.log
+.vs/
+CerberusService/WebUI/
