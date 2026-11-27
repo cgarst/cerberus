@@ -1,0 +1,35 @@
+{
+  "name": "Cerberus",
+  "identifier": "com.cerberus.app.source",
+  "subtitle": "Official Cerberus SideStore / AltStore source (stable, beta, alpha)",
+  "sourceURL": "https://raw.githubusercontent.com/cgarst/cerberus/altstore/source.json",
+  "iconURL": "https://raw.githubusercontent.com/cgarst/cerberus/master/CerberusExpo/assets/icon.png",
+  "apps": [
+    {
+      "name": "Cerberus",
+      "bundleIdentifier": "com.cerberus.app",
+      "developerName": "cgarst",
+      "subtitle": "Remote PC room-state controller & Wake-on-LAN",
+      "localizedDescription": "Control CerberusService room profiles, display/audio switching, Wake-on-LAN, system telemetry, and RTSS OSD from your iPhone or iPad.",
+      "iconURL": "https://raw.githubusercontent.com/cgarst/cerberus/master/CerberusExpo/assets/icon.png",
+      "tintColor": "#1a9fff",
+      "category": "utilities",
+      "appPermissions": {
+        "entitlements": [],
+        "privacy": {
+          "NSLocalNetworkUsageDescription": "Cerberus needs local network access to communicate with CerberusService and send Wake-on-LAN packets."
+        }
+      },
+      "versions": [
+        {
+          "version": "1.0.0-alpha.20261127-b047408",
+          "date": "2026-11-27T20:54:31Z",
+          "localizedDescription": "[Alpha] Automated alpha build of `b047408910b8043aedf4f411b27e53e4e2f096ae`.\n\n- Version: `1.0.0-alpha.20261127-b047408`\n- Channel: `alpha`",
+          "downloadURL": "https://github.com/cgarst/cerberus/releases/download/alpha/Cerberus-1.0.0-alpha.20261127-b047408-ios-unsigned.ipa",
+          "size": 14001377
+        }
+      ]
+    }
+  ],
+  "news": []
+}
