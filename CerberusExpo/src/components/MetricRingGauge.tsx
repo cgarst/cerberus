@@ -41,7 +41,13 @@ export function MetricRingGauge({
 
   return (
     <View style={styles.container}>
-      <Text style={styles.modelName} numberOfLines={2}>
+      <Text
+        style={styles.modelName}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.75}
+        ellipsizeMode="tail"
+      >
         {modelName || ' '}
       </Text>
 
@@ -93,8 +99,8 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: Colors.textSecondary,
     textAlign: 'center',
-    height: 26,
-    lineHeight: 13,
+    height: 16,
+    lineHeight: 16,
   },
   ringWrapper: {
     width: 62,

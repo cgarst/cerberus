@@ -223,13 +223,17 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   doneBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: Radii.xs,
-    backgroundColor: Colors.steamBlueBg,
-    borderWidth: 1,
-    borderColor: Colors.steamBlueBorder,
-    marginRight: Platform.OS === 'ios' ? 0 : 14,
+    paddingHorizontal: Platform.OS === 'ios' ? 8 : 10,
+    paddingVertical: Platform.OS === 'ios' ? 4 : 5,
+    ...(Platform.OS !== 'ios'
+      ? {
+          borderRadius: Radii.xs,
+          backgroundColor: Colors.steamBlueBg,
+          borderWidth: 1,
+          borderColor: Colors.steamBlueBorder,
+          marginRight: 14,
+        }
+      : null),
   },
   doneText: {
     fontSize: 12,

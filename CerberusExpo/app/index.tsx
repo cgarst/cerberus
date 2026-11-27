@@ -728,11 +728,15 @@ const styles = StyleSheet.create({
     marginRight: Platform.OS === 'ios' ? 0 : 14,
   },
   headerBtn: {
-    padding: 6,
-    borderRadius: Radii.sm,
-    backgroundColor: Colors.surfaceElevated,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    padding: Platform.OS === 'ios' ? 4 : 6,
+    ...(Platform.OS !== 'ios'
+      ? {
+          borderRadius: Radii.sm,
+          backgroundColor: Colors.surfaceElevated,
+          borderWidth: 1,
+          borderColor: Colors.border,
+        }
+      : null),
   },
   heroBanner: {
     position: 'relative',

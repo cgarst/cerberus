@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from 'expo-router';
 import { SteamPressable } from '../src/components/SteamSurface';
@@ -62,11 +62,15 @@ const styles = StyleSheet.create({
     paddingTop: 12,
   },
   headerBtn: {
-    padding: 6,
-    borderRadius: Radii.sm,
-    backgroundColor: Colors.surfaceElevated,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    padding: Platform.OS === 'ios' ? 4 : 6,
+    ...(Platform.OS !== 'ios'
+      ? {
+          borderRadius: Radii.sm,
+          backgroundColor: Colors.surfaceElevated,
+          borderWidth: 1,
+          borderColor: Colors.border,
+        }
+      : null),
   },
   disabled: { opacity: 0.45 },
 });

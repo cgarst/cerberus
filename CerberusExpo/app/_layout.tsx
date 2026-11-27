@@ -1,11 +1,15 @@
 import React from 'react';
-import { Image, Platform, StyleSheet, Text, View } from 'react-native';
+import { Appearance, Image, Platform, StyleSheet, Text, View } from 'react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { PCRemoteProvider } from '../src/state/usePCRemote';
 import { AuthPromptModal } from '../src/components/AuthPromptModal';
 import { Colors } from '../src/theme';
+
+if (Platform.OS === 'ios') {
+  Appearance.setColorScheme('dark');
+}
 
 export default function RootLayout() {
   return (
@@ -20,6 +24,10 @@ export default function RootLayout() {
             },
             headerBlurEffect:
               Platform.OS === 'ios' ? 'systemChromeMaterialDark' : undefined,
+            headerUserInterfaceStyle:
+              Platform.OS === 'ios' ? 'dark' : undefined,
+            headerBackButtonDisplayMode:
+              Platform.OS === 'ios' ? 'minimal' : undefined,
             headerTintColor: Colors.textBright,
             headerTitleStyle: {
               fontWeight: '700',
