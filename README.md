@@ -1,9 +1,15 @@
-# Cerberus
+<p align="center">
+  <img src="docs/logo.png" alt="Cerberus logo" width="120" />
+</p>
 
-[![Release](https://img.shields.io/github/v/release/cgarst/cerberus?include_prereleases&label=release)](https://github.com/cgarst/cerberus/releases)
-![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20%7C%20Android%20%7C%20iOS%20%7C%20Web-0078d4)
-![Runtime](https://img.shields.io/badge/.NET-10.0-512bd4)
-![Expo](https://img.shields.io/badge/Expo-SDK%2058-000020?logo=expo&logoColor=white)
+<h1 align="center">Cerberus</h1>
+
+<p align="center">
+  <a href="https://github.com/cgarst/cerberus/releases"><img src="https://img.shields.io/github/v/release/cgarst/cerberus?include_prereleases&label=release" alt="Release" /></a>
+  <img src="https://img.shields.io/badge/platform-Windows%2010%2F11%20%7C%20Android%20%7C%20iOS%20%7C%20Web-0078d4" alt="Platform" />
+  <img src="https://img.shields.io/badge/.NET-10.0-512bd4" alt="Runtime" />
+  <img src="https://img.shields.io/badge/Expo-SDK%2058-000020?logo=expo&logoColor=white" alt="Expo" />
+</p>
 
 Cerberus is a remote that simplifies using a Windows gaming PC across multiple screens for a more console-like experience. It is primarily designed for advanced setups where displays from multiple rooms are plugged into the GPU, but also provides general remote control and monitoring functionality for single-room setups. Acting as a profile switcher and hardware dashboard, it lets you monitor live CPU, GPU, and FPS telemetry, toggle the RivaTuner Statistics Server (RTSS) On-Screen Display (OSD), launch games, manage open windows, and wake or sleep your PC from your phone or tablet without touching a keyboard or mouse.
 
