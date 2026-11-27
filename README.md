@@ -28,7 +28,10 @@ Cerberus is currently in **alpha** (pre-release):
 
 Each release includes:
 
+Required PC service:
 - **Windows**: `CerberusServiceSetup-*-win-x64.exe` (recommended installer) and `CerberusService-*-win-x64.exe` (standalone executable)
+
+Optional mobile apps (can alternatively use web UI):
 - **Android**: `Cerberus-*-android.apk` (also available via [Obtainium](https://obtainium.imranr.dev/): [add to Obtainium](https://apps.obtainium.imranr.dev/redirect?r=obtainium://add/https://github.com/cgarst/cerberus) and enable **Include prereleases**)
 - **iOS**: `Cerberus-*-ios-unsigned.ipa` (also available via the [SideStore / AltStore source](https://raw.githubusercontent.com/cgarst/cerberus/altstore/source.json))
 
