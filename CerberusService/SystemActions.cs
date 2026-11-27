@@ -7,6 +7,7 @@ using System.Net.NetworkInformation;
 using System.ServiceProcess;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Win32;
 
 namespace RoomAgent
 {
@@ -650,16 +651,183 @@ namespace RoomAgent
             _logger.Info("RestoreWindowPositions -> restored " + restored + " of " + toRestore.Count + " windows");
         }
 
+        internal const string SteamBigPictureShortcutPath = "cerberus://shortcut/steam-big-picture";
+        internal const string SteamBigPictureShortcutName = "Steam Big Picture Mode";
+        internal const string XboxAppShortcutPath = "cerberus://shortcut/xbox-app";
+        internal const string XboxAppShortcutName = "Xbox App";
+
         public IList<DesktopShortcutInfo> GetDesktopShortcuts()
         {
             List<DesktopShortcutInfo> results = new List<DesktopShortcutInfo>();
             HashSet<string> seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            AddShortcutsFromDirectory(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "user", results, seenPaths);
-            AddShortcutsFromDirectory(Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory), "public", results, seenPaths);
+            string customDir = _config != null ? _config.ShortcutsDirectory : null;
+            if (!string.IsNullOrWhiteSpace(customDir))
+            {
+                string resolvedDir = Environment.ExpandEnvironmentVariables(customDir.Trim());
+                AddShortcutsFromDirectory(resolvedDir, "custom", results, seenPaths);
+            }
+            else
+            {
+                AddShortcutsFromDirectory(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "user", results, seenPaths);
+                AddShortcutsFromDirectory(Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory), "public", results, seenPaths);
+            }
+
+            AddBuiltInShortcuts(results, seenPaths);
 
             results.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
             return results;
+        }
+
+        internal void AddBuiltInShortcuts(List<DesktopShortcutInfo> results, HashSet<string> seenPaths)
+        {
+            if (!HasShortcutNamed(results, SteamBigPictureShortcutName, "Steam Big Picture") &&
+                seenPaths.Add(SteamBigPictureShortcutPath))
+            {
+                results.Add(new DesktopShortcutInfo
+                {
+                    Name = SteamBigPictureShortcutName,
+                    Path = SteamBigPictureShortcutPath,
+                    Extension = "uri",
+                    Source = "builtin",
+                    IconDataUrl = TryGetSteamIconDataUrl()
+                });
+            }
+
+            if (!HasShortcutNamed(results, XboxAppShortcutName, "Xbox") &&
+                seenPaths.Add(XboxAppShortcutPath))
+            {
+                results.Add(new DesktopShortcutInfo
+                {
+                    Name = XboxAppShortcutName,
+                    Path = XboxAppShortcutPath,
+                    Extension = "app",
+                    Source = "builtin",
+                    IconDataUrl = TryGetXboxAppIconDataUrl()
+                });
+            }
+        }
+
+        private static bool HasShortcutNamed(List<DesktopShortcutInfo> results, params string[] names)
+        {
+            foreach (DesktopShortcutInfo item in results)
+            {
+                foreach (string name in names)
+                {
+                    if (string.Equals(item.Name, name, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        private string TryGetSteamIconDataUrl()
+        {
+            try
+            {
+                string steamExe = _config != null ? _config.SteamPath : null;
+                if (string.IsNullOrWhiteSpace(steamExe) || !File.Exists(steamExe))
+                {
+                    using (RegistryKey key = Registry.CurrentUser.OpenSubKey(@"Software\Valve\Steam"))
+                    {
+                        if (key != null)
+                        {
+                            object exeVal = key.GetValue("SteamExe");
+                            if (exeVal != null && File.Exists(exeVal.ToString()))
+                            {
+                                steamExe = exeVal.ToString();
+                            }
+                            else
+                            {
+                                object pathVal = key.GetValue("SteamPath");
+                                if (pathVal != null)
+                                {
+                                    string candidate = Path.Combine(pathVal.ToString(), "steam.exe");
+                                    if (File.Exists(candidate))
+                                    {
+                                        steamExe = candidate;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (!string.IsNullOrWhiteSpace(steamExe) && File.Exists(steamExe))
+                {
+                    return NativeInterop.ExtractShellFileIconDataUrl(steamExe);
+                }
+            }
+            catch
+            {
+            }
+            return null;
+        }
+
+        private static string TryGetXboxAppIconDataUrl()
+        {
+            try
+            {
+                Process[] procs = Process.GetProcessesByName("XboxPcApp");
+                try
+                {
+                    foreach (Process proc in procs)
+                    {
+                        try
+                        {
+                            string exePath = proc.MainModule != null ? proc.MainModule.FileName : null;
+                            if (!string.IsNullOrWhiteSpace(exePath) && File.Exists(exePath))
+                            {
+                                return NativeInterop.ExtractShellFileIconDataUrl(exePath);
+                            }
+                        }
+                        catch
+                        {
+                        }
+                    }
+                }
+                finally
+                {
+                    foreach (Process proc in procs)
+                    {
+                        proc.Dispose();
+                    }
+                }
+
+                using (RegistryKey packagesKey = Registry.CurrentUser.OpenSubKey(
+                    @"Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\Repository\Packages"))
+                {
+                    if (packagesKey != null)
+                    {
+                        foreach (string subKeyName in packagesKey.GetSubKeyNames())
+                        {
+                            if (!subKeyName.StartsWith("Microsoft.GamingApp_", StringComparison.OrdinalIgnoreCase))
+                            {
+                                continue;
+                            }
+
+                            using (RegistryKey pkgKey = packagesKey.OpenSubKey(subKeyName))
+                            {
+                                object rootObj = pkgKey != null ? pkgKey.GetValue("PackageRootFolder") : null;
+                                if (rootObj != null)
+                                {
+                                    string exePath = Path.Combine(rootObj.ToString(), "XboxPcApp.exe");
+                                    if (File.Exists(exePath))
+                                    {
+                                        return NativeInterop.ExtractShellFileIconDataUrl(exePath);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch
+            {
+            }
+            return null;
         }
 
         private static void AddShortcutsFromDirectory(string dir, string source, List<DesktopShortcutInfo> results, HashSet<string> seenPaths)
@@ -753,7 +921,28 @@ namespace RoomAgent
                 }
             }
 
-            if (match == null || !File.Exists(match.Path))
+            if (match == null)
+            {
+                return false;
+            }
+
+            if (string.Equals(match.Path, SteamBigPictureShortcutPath, StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.Info("Launching built-in shortcut \"" + match.Name + "\"");
+                OpenSteamBigPicture();
+                launchedName = match.Name;
+                return true;
+            }
+
+            if (string.Equals(match.Path, XboxAppShortcutPath, StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.Info("Launching built-in shortcut \"" + match.Name + "\"");
+                OpenXboxApp();
+                launchedName = match.Name;
+                return true;
+            }
+
+            if (!File.Exists(match.Path))
             {
                 return false;
             }
@@ -766,6 +955,11 @@ namespace RoomAgent
                 UseShellExecute = true
             };
             Process.Start(psi);
+            if (string.Equals(match.Name, XboxAppShortcutName, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(match.Name, "Xbox", StringComparison.OrdinalIgnoreCase))
+            {
+                MaximizeXboxAppWindow(TimeSpan.FromSeconds(8));
+            }
             launchedName = match.Name;
             return true;
         }
@@ -892,6 +1086,50 @@ namespace RoomAgent
                 _logger.Warn("Could not set default audio playback device matching \"" + (expectedAudio ?? "") + "\"");
             }
             return ok;
+        }
+
+        public void OpenXboxApp()
+        {
+            try
+            {
+                ProcessStartInfo psi = new ProcessStartInfo
+                {
+                    FileName = "explorer.exe",
+                    Arguments = @"shell:AppsFolder\Microsoft.GamingApp_8wekyb3d8bbwe!Microsoft.Xbox.App",
+                    UseShellExecute = true
+                };
+                Process.Start(psi);
+            }
+            catch (Exception ex)
+            {
+                _logger.Warn("Failed to launch Xbox app via AppsFolder (" + ex.Message + "); falling back to xbox://");
+                LaunchUri("xbox://");
+            }
+
+            MaximizeXboxAppWindow(TimeSpan.FromSeconds(8));
+        }
+
+        private void MaximizeXboxAppWindow(TimeSpan timeout)
+        {
+            DateTime deadline = DateTime.UtcNow + timeout;
+            while (DateTime.UtcNow < deadline)
+            {
+                List<OpenWindowInfo> windows = NativeInterop.EnumerateOpenWindows(includeShellCloaked: false);
+                for (int i = 0; i < windows.Count; i++)
+                {
+                    OpenWindowInfo w = windows[i];
+                    if (IsXboxAppWindow(w))
+                    {
+                        bool maximized = NativeInterop.MaximizeWindowByHandle(w.Hwnd);
+                        _logger.Info("Maximized Xbox App window (hwnd=" + w.Hwnd + ") -> " + maximized);
+                        return;
+                    }
+                }
+
+                Thread.Sleep(150);
+            }
+
+            _logger.Info("Xbox App window not detected within timeout; continuing.");
         }
 
         public void OpenSteamBigPicture()

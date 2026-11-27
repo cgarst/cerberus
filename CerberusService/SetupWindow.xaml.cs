@@ -171,6 +171,7 @@ namespace RoomAgent
                 DisplaySettleBox.Text = _workingConfig.DisplaySettleDelayMs.ToString();
                 SteamPathBox.Text = _workingConfig.SteamPath ?? "";
                 SelectComboValue(SteamCloseModeCombo, _workingConfig.SteamCloseMode ?? "exit-bigpicture");
+                ShortcutsDirectoryBox.Text = _workingConfig.ShortcutsDirectory ?? "";
                 IdleSleepChk.IsChecked = _workingConfig.IdleSleepAfterRevert;
                 RunIntegrationsOnConsoleEnvironmentChk.IsChecked = _workingConfig.RunIntegrationsOnConsoleEnvironmentSwitch;
                 SelectComboValue(StreamingConsoleEnvironmentCombo, _workingConfig.StreamingConsoleEnvironmentMode ?? "");
@@ -1554,6 +1555,7 @@ namespace RoomAgent
                 if (TryParseIntInRange(DisplaySettleBox.Text, 0, 30000, out int settleMs)) _workingConfig.DisplaySettleDelayMs = settleMs;
                 _workingConfig.SteamPath = SteamPathBox.Text.Trim();
                 _workingConfig.SteamCloseMode = GetSelectedComboValue(SteamCloseModeCombo);
+                _workingConfig.ShortcutsDirectory = ShortcutsDirectoryBox.Text.Trim();
                 _workingConfig.IdleSleepAfterRevert = IdleSleepChk.IsChecked == true;
                 _workingConfig.RunIntegrationsOnConsoleEnvironmentSwitch = RunIntegrationsOnConsoleEnvironmentChk.IsChecked == true;
                 _workingConfig.StreamingConsoleEnvironmentMode = GetSelectedComboValue(StreamingConsoleEnvironmentCombo) ?? "";
@@ -1588,6 +1590,35 @@ namespace RoomAgent
         private void BrowseSteamBtn_Click(object sender, RoutedEventArgs e)
         {
             BrowseExeIntoBox(SteamPathBox);
+        }
+
+        private void BrowseShortcutsDirBtn_Click(object sender, RoutedEventArgs e)
+        {
+            OpenFolderDialog dlg = new OpenFolderDialog
+            {
+                Title = "Select Shortcut Folder"
+            };
+            if (!string.IsNullOrWhiteSpace(ShortcutsDirectoryBox.Text))
+            {
+                try
+                {
+                    string dir = Environment.ExpandEnvironmentVariables(ShortcutsDirectoryBox.Text.Trim());
+                    if (Directory.Exists(dir))
+                    {
+                        dlg.InitialDirectory = dir;
+                    }
+                }
+                catch { }
+            }
+            if (dlg.ShowDialog(this) == true)
+            {
+                ShortcutsDirectoryBox.Text = dlg.FolderName;
+            }
+        }
+
+        private void ResetShortcutsDirBtn_Click(object sender, RoutedEventArgs e)
+        {
+            ShortcutsDirectoryBox.Text = "";
         }
 
         private void BrowseExeIntoBox(TextBox box)

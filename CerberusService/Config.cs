@@ -55,6 +55,7 @@ namespace RoomAgent
         public int VerifyRetryCount { get; set; }
         public string SteamPath { get; set; }
         public string SteamCloseMode { get; set; }
+        public string ShortcutsDirectory { get; set; }
         public int DisplaySettleDelayMs { get; set; }
         public int WakeGuardSeconds { get; set; }
         public int IdleRevertMinutes { get; set; }
@@ -119,6 +120,7 @@ namespace RoomAgent
             VerifyRetryCount = 1;
             SteamPath = @"C:\Program Files (x86)\Steam\steam.exe";
             SteamCloseMode = "exit-bigpicture";
+            ShortcutsDirectory = "";
             DisplaySettleDelayMs = 1500;
             WakeGuardSeconds = 15;
             IdleRevertMinutes = 45;
@@ -199,6 +201,7 @@ namespace RoomAgent
             if (Port <= 0 || Port > 65535) Port = defaults.Port;
             if (string.IsNullOrWhiteSpace(SteamPath)) SteamPath = defaults.SteamPath;
             if (string.IsNullOrWhiteSpace(SteamCloseMode)) SteamCloseMode = defaults.SteamCloseMode;
+            ShortcutsDirectory = ShortcutsDirectory == null ? "" : ShortcutsDirectory.Trim();
             if (DisplaySettleDelayMs < 0) DisplaySettleDelayMs = defaults.DisplaySettleDelayMs;
             if (WakeGuardSeconds < 0) WakeGuardSeconds = defaults.WakeGuardSeconds;
             if (IdleRevertMinutes < 0) IdleRevertMinutes = defaults.IdleRevertMinutes;
@@ -521,6 +524,7 @@ namespace RoomAgent
             VerifyRetryCount = updated.VerifyRetryCount;
             SteamPath = updated.SteamPath;
             SteamCloseMode = updated.SteamCloseMode;
+            ShortcutsDirectory = updated.ShortcutsDirectory ?? "";
             DisplaySettleDelayMs = updated.DisplaySettleDelayMs;
             WakeGuardSeconds = updated.WakeGuardSeconds;
             IdleRevertMinutes = updated.IdleRevertMinutes;

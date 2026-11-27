@@ -196,6 +196,7 @@ namespace RoomAgent.Tests
             Run("SwitchConsoleEnvironmentModeWhileInOffice", TestSwitchConsoleEnvironmentModeWhileInOffice);
             Run("PerRoomConsoleEnvironmentModeConfigDefaultsAndTransitions", TestPerRoomConsoleEnvironmentModeConfigDefaultsAndTransitions);
             Run("ShortcutsAndWindowsControllerActions", TestShortcutsAndWindowsControllerActions);
+            Run("BuiltInShortcutsAlwaysPresent", TestBuiltInShortcutsAlwaysPresent);
             Run("ReconcileStartupStateRevertsLeftoverConsoleEnvironmentInOfficeMode", TestReconcileStartupStateRevertsLeftoverConsoleEnvironmentInOfficeMode);
             Run("ReconcileStartupStateSkipsWhenNoPendingState", TestReconcileStartupStateSkipsWhenNoPendingState);
             Run("SetConsoleEnvironmentModeOffRevertsPendingStateEvenWhenAlreadyOff", TestSetConsoleEnvironmentModeOffRevertsPendingStateEvenWhenAlreadyOff);
@@ -1104,6 +1105,79 @@ namespace RoomAgent.Tests
 
                 Assert(ctrl.OpenTaskView(), "Expected OpenTaskView to succeed");
                 Assert(actions.Calls.Contains("task-view"), "Expected task-view call");
+            }
+        }
+
+        private static void TestBuiltInShortcutsAlwaysPresent()
+        {
+            AgentConfig cfg = CreateTestConfig();
+            WindowsSystemActions actions = new WindowsSystemActions(cfg, new FakeLogger());
+            IList<DesktopShortcutInfo> shortcuts = actions.GetDesktopShortcuts();
+
+            bool hasSteamBigPicture = false;
+            bool hasXboxApp = false;
+            foreach (DesktopShortcutInfo s in shortcuts)
+            {
+                if (string.Equals(s.Name, WindowsSystemActions.SteamBigPictureShortcutName, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(s.Name, "Steam Big Picture", StringComparison.OrdinalIgnoreCase))
+                {
+                    hasSteamBigPicture = true;
+                }
+                if (string.Equals(s.Name, WindowsSystemActions.XboxAppShortcutName, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(s.Name, "Xbox", StringComparison.OrdinalIgnoreCase))
+                {
+                    hasXboxApp = true;
+                }
+            }
+
+            Assert(hasSteamBigPicture, "Expected Steam Big Picture Mode shortcut to always be present");
+            Assert(hasXboxApp, "Expected Xbox App shortcut to always be present");
+
+            List<DesktopShortcutInfo> existingDesktop = new List<DesktopShortcutInfo>
+            {
+                new DesktopShortcutInfo { Name = "Steam Big Picture", Path = @"C:\Desktop\Steam Big Picture.lnk", Extension = "lnk", Source = "user" },
+                new DesktopShortcutInfo { Name = "Xbox", Path = @"C:\Desktop\Xbox.lnk", Extension = "lnk", Source = "user" }
+            };
+            HashSet<string> seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                @"C:\Desktop\Steam Big Picture.lnk",
+                @"C:\Desktop\Xbox.lnk"
+            };
+            actions.AddBuiltInShortcuts(existingDesktop, seen);
+            Assert(existingDesktop.Count == 2, "Expected built-in shortcuts to deduplicate against existing desktop shortcuts");
+
+            string tempShortcutsDir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "cerberus-shortcuts-" + Guid.NewGuid().ToString("N"));
+            System.IO.Directory.CreateDirectory(tempShortcutsDir);
+            try
+            {
+                string customUrl = System.IO.Path.Combine(tempShortcutsDir, "Custom Game.url");
+                System.IO.File.WriteAllText(customUrl, "[InternetShortcut]\r\nURL=steam://rungameid/12345\r\n");
+
+                AgentConfig customCfg = CreateTestConfig();
+                customCfg.ShortcutsDirectory = tempShortcutsDir;
+                customCfg.ApplyDefaultsAndNormalize();
+                Assert(customCfg.ShortcutsDirectory == tempShortcutsDir, "Expected custom ShortcutsDirectory to be preserved");
+
+                WindowsSystemActions customActions = new WindowsSystemActions(customCfg, new FakeLogger());
+                IList<DesktopShortcutInfo> customShortcuts = customActions.GetDesktopShortcuts();
+                bool hasCustom = false;
+                bool customHasBuiltInSteam = false;
+                bool customHasBuiltInXbox = false;
+                foreach (DesktopShortcutInfo s in customShortcuts)
+                {
+                    if (s.Name == "Custom Game" && s.Source == "custom") hasCustom = true;
+                    if (s.Name == WindowsSystemActions.SteamBigPictureShortcutName) customHasBuiltInSteam = true;
+                    if (s.Name == WindowsSystemActions.XboxAppShortcutName) customHasBuiltInXbox = true;
+                }
+                Assert(hasCustom, "Expected custom shortcut folder entry to appear");
+                Assert(customHasBuiltInSteam && customHasBuiltInXbox, "Expected built-in shortcuts to still appear with custom folder");
+            }
+            finally
+            {
+                if (System.IO.Directory.Exists(tempShortcutsDir))
+                {
+                    System.IO.Directory.Delete(tempShortcutsDir, true);
+                }
             }
         }
 
