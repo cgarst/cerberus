@@ -29,7 +29,7 @@ Cerberus is currently in **alpha** (pre-release):
 Each release includes:
 
 - **Windows**: `CerberusServiceSetup-*-win-x64.exe` (recommended installer) and `CerberusService-*-win-x64.exe` (standalone executable)
-- **Android**: `Cerberus-*-android.apk`
+- **Android**: `Cerberus-*-android.apk` (also available via [Obtainium](https://obtainium.imranr.dev/): [add to Obtainium](https://apps.obtainium.imranr.dev/redirect?r=obtainium://add/https://github.com/cgarst/cerberus) and enable **Include prereleases**)
 - **iOS**: `Cerberus-*-ios-unsigned.ipa` (also available via the [SideStore / AltStore source](https://raw.githubusercontent.com/cgarst/cerberus/altstore/source.json))
 
 ---
@@ -78,7 +78,7 @@ To install and run Cerberus:
 
 1. Download and run `CerberusServiceSetup-*-win-x64.exe` from the [Latest Alpha Release](https://github.com/cgarst/cerberus/releases/tag/alpha) (or [All Releases](https://github.com/cgarst/cerberus/releases)). The installer places the service in `Program Files\CerberusService`, stores `config.json` and `logs\` in `C:\ProgramData\CerberusService\`, and sets up the Windows Firewall rule, HTTP URL ACL, and optional logon autostart task.
 2. Open **Setup & Profiles** from the Cerberus tray icon to configure your monitors and audio devices.
-3. *(Optional)* Install the mobile app on Android (`Cerberus-*-android.apk`) or iOS (`Cerberus-*-ios-unsigned.ipa` / SideStore) for Wake-on-LAN and native app access, or open `http://<pc-name>:8090` in any browser.
+3. *(Optional)* Install the mobile app on Android (`Cerberus-*-android.apk` or via [Obtainium](https://obtainium.imranr.dev/): [add Cerberus](https://apps.obtainium.imranr.dev/redirect?r=obtainium://add/https://github.com/cgarst/cerberus)) or iOS (`Cerberus-*-ios-unsigned.ipa` / SideStore) for Wake-on-LAN and native app access, or open `http://<pc-name>:8090` in any browser.
 
 ---
 
