@@ -134,6 +134,16 @@ export class RoomAgentClient {
     };
   }
 
+  async fetchAuthStatus(timeoutMs = 3000): Promise<{ enabled: boolean }> {
+    const resp = await this.request<{ enabled?: boolean }>(
+      'GET',
+      '/api/auth/status',
+      undefined,
+      timeoutMs
+    );
+    return { enabled: Boolean(resp?.enabled) };
+  }
+
   async fetchHealth(timeoutMs = 2000): Promise<HealthResponse> {
     return this.request<HealthResponse>('GET', '/api/health', undefined, timeoutMs);
   }

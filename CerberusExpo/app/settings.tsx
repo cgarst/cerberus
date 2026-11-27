@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   Platform,
   ScrollView,
@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRouter } from 'expo-router';
+import { normalizeHostInput } from '../src/api/models';
 import { SteamPressable, SteamSurface } from '../src/components/SteamSurface';
 import { usePCRemote } from '../src/state/usePCRemote';
 import { Colors, Radii } from '../src/theme';
@@ -21,13 +22,47 @@ export default function SettingsScreen() {
   const router = useRouter();
   const navigation = useNavigation();
 
+  const [hostText, setHostText] = useState(vm.pcHost);
   const [portText, setPortText] = useState(String(vm.pcPort));
   const [timeoutText, setTimeoutText] = useState(String(vm.wakeTimeoutSeconds));
+  const hostTextRef = useRef(hostText);
+  const portTextRef = useRef(portText);
 
   useEffect(() => {
-    setPortText(String(vm.pcPort));
-    setTimeoutText(String(vm.wakeTimeoutSeconds));
-  }, [vm.pcPort, vm.wakeTimeoutSeconds]);
+    hostTextRef.current = hostText;
+  }, [hostText]);
+
+  useEffect(() => {
+    portTextRef.current = portText;
+  }, [portText]);
+
+  const commitHostAndPort = useCallback(() => {
+    const portNum = Number(portTextRef.current);
+    const fallbackPort =
+      Number.isInteger(portNum) && portNum > 0 && portNum <= 65535
+        ? portNum
+        : vm.pcPort;
+    const normalized = normalizeHostInput(hostTextRef.current, fallbackPort);
+    if (normalized.host !== vm.pcHost) {
+      vm.updateSetting('pcHost', normalized.host);
+    }
+    if (normalized.port !== vm.pcPort) {
+      vm.updateSetting('pcPort', normalized.port);
+    }
+    setHostText(normalized.host);
+    setPortText(String(normalized.port));
+  }, [vm]);
+
+  const commitRef = useRef(commitHostAndPort);
+  useEffect(() => {
+    commitRef.current = commitHostAndPort;
+  }, [commitHostAndPort]);
+
+  useEffect(() => {
+    return () => {
+      commitRef.current();
+    };
+  }, []);
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -35,6 +70,7 @@ export default function SettingsScreen() {
         <SteamPressable
           onPress={() => {
             triggerHaptic('light');
+            commitHostAndPort();
             router.back();
           }}
           hitSlop={10}
@@ -44,7 +80,7 @@ export default function SettingsScreen() {
         </SteamPressable>
       ),
     });
-  }, [navigation, router]);
+  }, [commitHostAndPort, navigation, router]);
 
   return (
     <ScrollView
@@ -59,8 +95,9 @@ export default function SettingsScreen() {
             <View style={styles.fieldRow}>
               <Text style={styles.fieldLabel}>PC HOST / IP</Text>
               <TextInput
-                value={vm.pcHost}
-                onChangeText={(text) => vm.updateSetting('pcHost', text)}
+                value={hostText}
+                onChangeText={setHostText}
+                onEndEditing={commitHostAndPort}
                 placeholder="192.168.1.100"
                 placeholderTextColor={Colors.textMuted}
                 autoCapitalize="none"

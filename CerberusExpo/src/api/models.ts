@@ -145,3 +145,28 @@ export function getBaseUrl(config: PCConnectionConfig): string | null {
   }
   return `http://${trimmedHost}:${config.pcPort}`;
 }
+
+export function normalizeHostInput(
+  rawHost: string,
+  fallbackPort: number
+): { host: string; port: number } {
+  let cleaned = rawHost.trim();
+  let port = fallbackPort;
+
+  cleaned = cleaned.replace(/^https?:\/\//i, '');
+  const slashIdx = cleaned.indexOf('/');
+  if (slashIdx !== -1) {
+    cleaned = cleaned.slice(0, slashIdx);
+  }
+
+  const colonIdx = cleaned.lastIndexOf(':');
+  if (colonIdx > 0 && !cleaned.includes(']')) {
+    const maybePort = Number(cleaned.slice(colonIdx + 1));
+    if (Number.isInteger(maybePort) && maybePort > 0 && maybePort <= 65535) {
+      port = maybePort;
+      cleaned = cleaned.slice(0, colonIdx);
+    }
+  }
+
+  return { host: cleaned.trim(), port };
+}

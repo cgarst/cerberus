@@ -59,9 +59,14 @@ interface PCRemoteContextValue {
   wakeTargetMode: string;
   lastError: string | null;
   clearError: () => void;
+  needsHostSetup: boolean;
   authRequired: boolean;
   authError: string | null;
   authSubmitting: boolean;
+  connectHost: (
+    host: string,
+    port: number
+  ) => Promise<{ ok: boolean; authEnabled?: boolean; error?: string }>;
   login: (password: string) => Promise<boolean>;
   signOut: () => void;
 
@@ -160,12 +165,28 @@ export function PCRemoteProvider({ children }: { children: React.ReactNode }) {
 
   const updateSetting = useCallback(
     <K extends keyof PersistedSettings>(key: K, value: PersistedSettings[K]) => {
+      const prevValue = settingsRef.current[key];
+      const hostOrPortChanged =
+        (key === 'pcHost' || key === 'pcPort') && prevValue !== value;
+
       setSettings((prev) => {
         const next = { ...prev, [key]: value };
+        if (hostOrPortChanged) {
+          next.bearerToken = '';
+        }
         settingsRef.current = next;
         return next;
       });
       void saveSetting(key, value);
+
+      if (hostOrPortChanged) {
+        void saveSetting('bearerToken', '');
+        setLastError(null);
+        setAuthRequired(false);
+        setAuthError(null);
+        setHealth(null);
+        shortcutsLoadedRef.current = false;
+      }
     },
     []
   );
@@ -236,6 +257,14 @@ export function PCRemoteProvider({ children }: { children: React.ReactNode }) {
 
   const refreshStatus = useCallback(async () => {
     if (settingsRef.current.isDemoMode) return;
+    if (settingsRef.current.pcHost.trim().length === 0) {
+      setHasCompletedInitialCheck(true);
+      setPcOnline(false);
+      setHealth(null);
+      setAuthRequired(false);
+      setLastError(null);
+      return;
+    }
     const client = new RoomAgentClient(getConfig());
     try {
       const result = await client.fetchHealth(2000);
@@ -267,9 +296,18 @@ export function PCRemoteProvider({ children }: { children: React.ReactNode }) {
         setPcOnline(true);
         setHealth(null);
         setAuthRequired(true);
+        setLastError(null);
         if (settingsRef.current.bearerToken) {
           updateSetting('bearerToken', '');
         }
+      } else if (
+        err instanceof RoomAgentClientError &&
+        err.kind === 'invalid_configuration'
+      ) {
+        setHasCompletedInitialCheck(true);
+        setPcOnline(false);
+        setHealth(null);
+        setLastError(err.message);
       } else if (err instanceof RoomAgentClientError && !err.isConnectivityError) {
         setHasCompletedInitialCheck(true);
         setPcOnline(true);
@@ -748,6 +786,50 @@ export function PCRemoteProvider({ children }: { children: React.ReactNode }) {
 
   const clearError = useCallback(() => setLastError(null), []);
 
+  const needsHostSetup =
+    settingsLoaded &&
+    !settings.isDemoMode &&
+    settings.pcHost.trim().length === 0;
+
+  const connectHost = useCallback(
+    async (
+      host: string,
+      port: number
+    ): Promise<{ ok: boolean; authEnabled?: boolean; error?: string }> => {
+      const trimmedHost = host.trim();
+      if (!trimmedHost || !Number.isInteger(port) || port <= 0 || port > 65535) {
+        return { ok: false, error: 'Enter a valid PC IP address or hostname and port.' };
+      }
+
+      const client = new RoomAgentClient({
+        ...getConfig(),
+        pcHost: trimmedHost,
+        pcPort: port,
+        bearerToken: '',
+      });
+
+      try {
+        const status = await client.fetchAuthStatus(3500);
+        updateSetting('pcHost', trimmedHost);
+        updateSetting('pcPort', port);
+        setLastError(null);
+        setAuthError(null);
+        setPcOnline(true);
+        if (status.enabled) {
+          setAuthRequired(true);
+          return { ok: true, authEnabled: true };
+        }
+        setAuthRequired(false);
+        return { ok: true, authEnabled: false };
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : String(err);
+        return { ok: false, error: message };
+      }
+    },
+    [getConfig, updateSetting]
+  );
+
   const login = useCallback(
     async (password: string): Promise<boolean> => {
       setAuthSubmitting(true);
@@ -799,9 +881,11 @@ export function PCRemoteProvider({ children }: { children: React.ReactNode }) {
     wakeTargetMode,
     lastError,
     clearError,
+    needsHostSetup,
     authRequired,
     authError,
     authSubmitting,
+    connectHost,
     login,
     signOut,
     profiles,
