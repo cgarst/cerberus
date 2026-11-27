@@ -86,9 +86,8 @@ export function RoomModeCard({
   const defaultUnavailable = defaultProfile.available === false;
   const primaryTarget =
     nonDefaultProfiles.find((p) => p.available !== false) ??
-    nonDefaultProfiles[0] ??
-    defaultProfile;
-  const primaryUnavailable = primaryTarget.available === false;
+    nonDefaultProfiles[0];
+  const primaryUnavailable = primaryTarget?.available === false;
 
   const soundLabel =
     health?.audioDevice?.trim() ||
@@ -219,6 +218,20 @@ export function RoomModeCard({
           </View>
 
           {compact ? metaColumns : null}
+        </View>
+      </SteamSurface>
+    );
+  }
+
+  if (!primaryTarget) {
+    if (!compact) {
+      return null;
+    }
+
+    return (
+      <SteamSurface glass style={styles.playBarCard}>
+        <View style={[styles.playBarInner, styles.playBarInnerCompact]}>
+          {metaColumns}
         </View>
       </SteamSurface>
     );
