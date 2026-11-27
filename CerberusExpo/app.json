@@ -37,7 +37,8 @@
     "plugins": [
       "expo-router",
       "expo-status-bar",
-      "./plugins/withAndroidSigning"
+      "./plugins/withAndroidSigning",
+      "./plugins/withAndroidCleartextTraffic"
     ]
   }
 }
