@@ -3,6 +3,16 @@ name: Alpha
 on:
   push:
     branches: [master, main]
+    paths:
+      - 'CerberusExpo/**'
+      - 'CerberusService/**'
+      - 'CerberusService.Tests/**'
+      - 'installer/**'
+      - 'scripts/**'
+      - '.github/workflows/alpha.yml'
+      - '.github/workflows/build.yml'
+      - '.github/workflows/altstore-source.yml'
+      - '!**.md'
   workflow_dispatch:
 
 concurrency:
