@@ -225,10 +225,9 @@ export default function HomeScreen() {
     'rgba(23, 29, 37, 0.94)',
   ];
 
-  const heroTitle =
-    vm.pcOnline && vm.health?.metrics?.frameAppName
-      ? vm.health.metrics.frameAppName
-      : 'Idle';
+  const heroTitle = !vm.pcOnline
+    ? 'Offline'
+    : vm.health?.metrics?.frameAppName || 'Ready';
 
   return (
     <>
@@ -324,19 +323,12 @@ export default function HomeScreen() {
               displayHeroUri ? styles.heroGradientWithArt : null,
             ]}
           >
-            {vm.isDemoMode || !vm.pcOnline ? (
+            {vm.isDemoMode ? (
               <View style={styles.heroTopRow}>
                 <View style={styles.heroTags}>
-                  {vm.isDemoMode ? (
-                    <View style={styles.heroTag}>
-                      <Text style={styles.heroTagText}>DEMO</Text>
-                    </View>
-                  ) : null}
-                  {!vm.pcOnline ? (
-                    <View style={styles.heroTag}>
-                      <Text style={styles.heroTagText}>OFFLINE</Text>
-                    </View>
-                  ) : null}
+                  <View style={styles.heroTag}>
+                    <Text style={styles.heroTagText}>DEMO</Text>
+                  </View>
                 </View>
               </View>
             ) : null}
