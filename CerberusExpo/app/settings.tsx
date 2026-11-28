@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useLayoutEffect } from 'react';
 import {
   Platform,
   ScrollView,
@@ -10,59 +10,25 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useNavigation, useRouter } from 'expo-router';
-import { normalizeHostInput } from '../src/api/models';
 import { SteamPressable, SteamSurface } from '../src/components/SteamSurface';
-import { usePCRemote } from '../src/state/usePCRemote';
+import { useSettingsForm } from '../src/state/useSettingsForm';
 import { Colors, Radii } from '../src/theme';
 import { triggerHaptic } from '../src/utils/haptics';
 import { isWakeOnLanSupported } from '../src/utils/wakeOnLan';
 
 export default function SettingsScreen() {
-  const vm = usePCRemote();
   const router = useRouter();
   const navigation = useNavigation();
-
-  const [hostText, setHostText] = useState(vm.pcHost);
-  const [portText, setPortText] = useState(String(vm.pcPort));
-  const [timeoutText, setTimeoutText] = useState(String(vm.wakeTimeoutSeconds));
-  const hostTextRef = useRef(hostText);
-  const portTextRef = useRef(portText);
-
-  useEffect(() => {
-    hostTextRef.current = hostText;
-  }, [hostText]);
-
-  useEffect(() => {
-    portTextRef.current = portText;
-  }, [portText]);
-
-  const commitHostAndPort = useCallback(() => {
-    const portNum = Number(portTextRef.current);
-    const fallbackPort =
-      Number.isInteger(portNum) && portNum > 0 && portNum <= 65535
-        ? portNum
-        : vm.pcPort;
-    const normalized = normalizeHostInput(hostTextRef.current, fallbackPort);
-    if (normalized.host !== vm.pcHost) {
-      vm.updateSetting('pcHost', normalized.host);
-    }
-    if (normalized.port !== vm.pcPort) {
-      vm.updateSetting('pcPort', normalized.port);
-    }
-    setHostText(normalized.host);
-    setPortText(String(normalized.port));
-  }, [vm]);
-
-  const commitRef = useRef(commitHostAndPort);
-  useEffect(() => {
-    commitRef.current = commitHostAndPort;
-  }, [commitHostAndPort]);
-
-  useEffect(() => {
-    return () => {
-      commitRef.current();
-    };
-  }, []);
+  const {
+    vm,
+    hostText,
+    setHostText,
+    portText,
+    handlePortChange,
+    timeoutText,
+    handleTimeoutChange,
+    commitHostAndPort,
+  } = useSettingsForm();
 
   useLayoutEffect(() => {
     if (Platform.OS === 'ios') return;
@@ -127,13 +93,7 @@ export default function SettingsScreen() {
               <Text style={styles.fieldLabel}>PORT</Text>
               <TextInput
                 value={portText}
-                onChangeText={(text) => {
-                  setPortText(text);
-                  const val = Number(text);
-                  if (Number.isInteger(val) && val > 0 && val <= 65535) {
-                    vm.updateSetting('pcPort', val);
-                  }
-                }}
+                onChangeText={handlePortChange}
                 placeholder="8090"
                 placeholderTextColor={Colors.textMuted}
                 keyboardType="number-pad"
@@ -208,13 +168,7 @@ export default function SettingsScreen() {
                 <Text style={styles.fieldLabel}>WAKE TIMEOUT (SECONDS)</Text>
                 <TextInput
                   value={timeoutText}
-                  onChangeText={(text) => {
-                    setTimeoutText(text);
-                    const val = Number(text);
-                    if (Number.isInteger(val) && val >= 5 && val <= 180) {
-                      vm.updateSetting('wakeTimeoutSeconds', val);
-                    }
-                  }}
+                  onChangeText={handleTimeoutChange}
                   placeholder="45"
                   placeholderTextColor={Colors.textMuted}
                   keyboardType="number-pad"
