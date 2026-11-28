@@ -55,23 +55,32 @@ jobs:
           path: artifacts
           merge-multiple: true
 
-      - name: Replace alpha release
+      - name: Publish alpha release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
+          tag="v${{ needs.prepare.outputs.version }}"
           cat > notes.md <<EOF
           Automated alpha build of \`$GITHUB_SHA\`.
 
           - Version: \`${{ needs.prepare.outputs.version }}\`
           - Channel: \`alpha\`
           EOF
-          gh release delete alpha --cleanup-tag --yes || true
-          gh release create alpha artifacts/* \
+          gh release delete "$tag" --cleanup-tag --yes || true
+          gh release create "$tag" artifacts/* \
             --target "$GITHUB_SHA" \
             --prerelease \
             --title "Alpha ${{ needs.prepare.outputs.version }}" \
             --notes-file notes.md
+
+          # Remove legacy static 'alpha' release and prune old alpha releases (keep latest 5)
+          gh release delete alpha --cleanup-tag --yes || true
+          gh release list --limit 100 --json tagName,createdAt \
+            --jq '[.[] | select(.tagName | test("^v.*-alpha\\."))] | sort_by(.createdAt) | reverse | .[5:][] | .tagName' \
+            | while read -r old_tag; do
+                [ -n "$old_tag" ] && gh release delete "$old_tag" --cleanup-tag --yes || true
+              done
 
   altstore-source:
     needs: publish

@@ -29,8 +29,7 @@ Profiles work across any setup. Switch monitors, TVs, resolution, refresh rate, 
 
 Cerberus is currently in **alpha** (pre-release):
 
-- **[Latest Alpha Release](https://github.com/cgarst/cerberus/releases/tag/alpha)** — automated builds from `master`
-- **[All Releases](https://github.com/cgarst/cerberus/releases)** — all stable, beta, and alpha releases
+- **[Releases](https://github.com/cgarst/cerberus/releases)** — automated alpha builds from `master`, plus beta and stable releases
 
 Each release includes:
 
@@ -85,7 +84,7 @@ Before you install Cerberus, make sure you have:
 
 To install and run Cerberus:
 
-1. Download and run `CerberusServiceSetup-*-win-x64.exe` from the [Latest Alpha Release](https://github.com/cgarst/cerberus/releases/tag/alpha) (or [All Releases](https://github.com/cgarst/cerberus/releases)). The installer places the service in `Program Files\CerberusService`, stores `config.json` and `logs\` in `C:\ProgramData\CerberusService\`, and sets up the Windows Firewall rule, HTTP URL ACL, and optional logon autostart task.
+1. Download and run `CerberusServiceSetup-*-win-x64.exe` from [Releases](https://github.com/cgarst/cerberus/releases). The installer places the service in `Program Files\CerberusService`, stores `config.json` and `logs\` in `C:\ProgramData\CerberusService\`, and sets up the Windows Firewall rule, HTTP URL ACL, and optional logon autostart task.
 2. Open **Setup & Profiles** from the Cerberus tray icon to configure your monitors and audio devices.
 3. *(Optional)* Install the mobile app on Android (`Cerberus-*-android.apk` or via [Obtainium](https://obtainium.imranr.dev/): [add Cerberus](https://apps.obtainium.imranr.dev/redirect?r=obtainium://add/https://github.com/cgarst/cerberus)) or iOS (`Cerberus-*-ios-unsigned.ipa` / SideStore) for Wake-on-LAN and native app access, or open `http://<pc-name>:8090` in any browser.
 
