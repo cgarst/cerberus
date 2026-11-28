@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   GestureResponderEvent,
+  KeyboardAvoidingView,
   Platform,
   ScrollView,
   StyleSheet,
@@ -8,6 +9,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack } from 'expo-router';
 import {
@@ -63,6 +65,7 @@ const QUICK_KEYS: QuickKeyDef[] = [
 
 export default function RemoteInputScreen() {
   const vm = usePCRemote();
+  const insets = useSafeAreaInsets();
   const [connState, setConnState] = useState<RemoteInputConnectionState>(
     vm.isDemoMode ? 'connected' : 'connecting'
   );
@@ -337,23 +340,43 @@ export default function RemoteInputScreen() {
       : 'Disconnected';
 
   return (
-    <View style={styles.root}>
+    <KeyboardAvoidingView
+      style={styles.keyboardAvoid}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 44 : 0}
+    >
+      <View style={styles.root}>
       <Stack.Screen
         options={{
           title: 'Remote Input',
-          headerRight: () => (
-            <SteamPressable
-              onPress={cycleSensitivity}
-              style={styles.sensitivityPill}
-              hitSlop={8}
-            >
-              <Text style={styles.sensitivityText}>
-                {SENSITIVITY_LABELS[sensitivity]}
-              </Text>
-            </SteamPressable>
-          ),
+          gestureEnabled: false,
+          ...(Platform.OS !== 'ios'
+            ? {
+                headerRight: () => (
+                  <SteamPressable
+                    onPress={cycleSensitivity}
+                    style={styles.sensitivityPill}
+                    hitSlop={8}
+                  >
+                    <Text style={styles.sensitivityText}>
+                      {SENSITIVITY_LABELS[sensitivity]}
+                    </Text>
+                  </SteamPressable>
+                ),
+              }
+            : null),
         }}
       />
+      {Platform.OS === 'ios' && (
+        <Stack.Toolbar placement="right">
+          <Stack.Toolbar.Button
+            accessibilityLabel={`Trackpad speed: ${SENSITIVITY_LABELS[sensitivity]}`}
+            onPress={cycleSensitivity}
+          >
+            {SENSITIVITY_LABELS[sensitivity]}
+          </Stack.Toolbar.Button>
+        </Stack.Toolbar>
+      )}
 
       {/* Status bar */}
       <View style={styles.statusRow}>
@@ -378,6 +401,7 @@ export default function RemoteInputScreen() {
         style={[styles.trackpad, touchActive && styles.trackpadActive]}
         onStartShouldSetResponder={() => true}
         onMoveShouldSetResponder={() => true}
+        onResponderTerminationRequest={() => false}
         onResponderGrant={handleTrackpadGrant}
         onResponderMove={handleTrackpadMove}
         onResponderRelease={handleTrackpadRelease}
@@ -500,11 +524,16 @@ export default function RemoteInputScreen() {
           <Text style={styles.enterBtnText}>Enter</Text>
         </SteamPressable>
       </SteamSurface>
-    </View>
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
+  keyboardAvoid: {
+    flex: 1,
+    backgroundColor: Colors.bg,
+  },
   root: {
     flex: 1,
     backgroundColor: Colors.bg,
@@ -548,7 +577,7 @@ const styles = StyleSheet.create({
   },
   trackpad: {
     flex: 1,
-    minHeight: 220,
+    minHeight: 80,
     backgroundColor: Colors.surface,
     borderRadius: Radii.lg,
     borderWidth: 1,
