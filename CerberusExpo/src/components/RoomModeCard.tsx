@@ -176,10 +176,6 @@ export function RoomModeCard({
               </SteamPressable>
             ) : null}
           </View>
-        ) : defaultUnavailable ? (
-          <Text style={styles.mobileHint}>
-            {`${defaultProfile.name} display is off — tap to switch when it turns on`}
-          </Text>
         ) : null}
       </SteamSurface>
     );
@@ -260,10 +256,6 @@ export function RoomModeCard({
               </SteamPressable>
             ) : null}
           </View>
-        ) : defaultUnavailable ? (
-          <Text style={styles.mobileHint}>
-            {`${defaultProfile.name} display is off — tap to switch when it turns on`}
-          </Text>
         ) : null}
       </SteamSurface>
     );
