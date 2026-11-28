@@ -13,6 +13,7 @@ import {
   DesktopShortcut,
   HealthResponse,
   OpenWindow,
+  OsdMode,
   PCConnectionConfig,
   ProfileSummary,
 } from '../api/models';
@@ -104,7 +105,7 @@ interface PCRemoteContextValue {
   wakeOnly: () => Promise<void>;
   stopStreaming: (targetMode: string) => Promise<void>;
   setConsoleEnvironmentMode: (mode: ConsoleEnvironmentMode) => Promise<void>;
-  toggleOsd: (next: boolean) => Promise<void>;
+  setOsdMode: (next: OsdMode) => Promise<void>;
   sleepPC: () => Promise<void>;
   shutdownPC: () => Promise<void>;
   fetchShortcuts: () => Promise<void>;
@@ -169,7 +170,7 @@ export function PCRemoteProvider({ children }: { children: React.ReactNode }) {
   );
 
   const demoTickRef = useRef(0);
-  const demoOsdRef = useRef(true);
+  const demoOsdRef = useRef<OsdMode>('afterburner');
   const demoInitialMode = getDemoInitialMode();
   const demoIdle = isDemoIdleEnabled();
   const demoModeRef = useRef<string>(demoInitialMode);
@@ -259,7 +260,7 @@ export function PCRemoteProvider({ children }: { children: React.ReactNode }) {
         mode: demoModeRef.current,
         streamingActive: demoStreamingRef.current,
         consoleEnvironmentMode: demoConsoleEnvRef.current,
-        osdEnabled: demoOsdRef.current,
+        osdMode: demoOsdRef.current,
         activeGame: demoActiveGameRef.current,
         fpsHistory: hist.fps,
         ftHistory: hist.ft,
@@ -731,13 +732,20 @@ export function PCRemoteProvider({ children }: { children: React.ReactNode }) {
     [getConfig, performAction]
   );
 
-  const toggleOsd = useCallback(
-    async (next: boolean) => {
+  const setOsdMode = useCallback(
+    async (next: OsdMode) => {
       if (settingsRef.current.isDemoMode) {
         demoOsdRef.current = next;
         setHealth((prev) =>
           prev?.metrics
-            ? { ...prev, metrics: { ...prev.metrics, osdEnabled: next } }
+            ? {
+                ...prev,
+                metrics: {
+                  ...prev.metrics,
+                  osdMode: next,
+                  osdEnabled: next !== 'off',
+                },
+              }
             : prev
         );
         return;
@@ -745,28 +753,66 @@ export function PCRemoteProvider({ children }: { children: React.ReactNode }) {
       if (osdPendingRef.current) return;
       osdPendingRef.current = true;
 
-      let previous: boolean | null | undefined;
+      let previousEnabled: boolean | null | undefined;
+      let previousMode: OsdMode | null | undefined;
       setHealth((prev) => {
-        previous = prev?.metrics?.osdEnabled;
+        previousEnabled = prev?.metrics?.osdEnabled;
+        previousMode = prev?.metrics?.osdMode;
         if (!prev?.metrics) return prev;
-        return { ...prev, metrics: { ...prev.metrics, osdEnabled: next } };
+        return {
+          ...prev,
+          metrics: {
+            ...prev.metrics,
+            osdMode: next,
+            osdEnabled: next !== 'off',
+          },
+        };
       });
 
       try {
-        const confirmed = await new RoomAgentClient(getConfig()).setOsdEnabled(
-          next
-        );
-        if (confirmed !== undefined && confirmed !== null) {
+        const resp = await new RoomAgentClient(getConfig()).setOsdMode(next);
+        const confirmedMode =
+          resp.osdMode ??
+          (resp.osdEnabled !== undefined && resp.osdEnabled !== null
+            ? resp.osdEnabled
+              ? next === 'off'
+                ? 'afterburner'
+                : next
+              : 'off'
+            : undefined);
+        const confirmedEnabled =
+          resp.osdEnabled ??
+          (confirmedMode !== undefined ? confirmedMode !== 'off' : undefined);
+
+        if (confirmedMode !== undefined || confirmedEnabled !== undefined) {
           setHealth((prev) =>
             prev?.metrics
-              ? { ...prev, metrics: { ...prev.metrics, osdEnabled: confirmed } }
+              ? {
+                  ...prev,
+                  metrics: {
+                    ...prev.metrics,
+                    ...(confirmedMode !== undefined
+                      ? { osdMode: confirmedMode }
+                      : {}),
+                    ...(confirmedEnabled !== undefined
+                      ? { osdEnabled: confirmedEnabled }
+                      : {}),
+                  },
+                }
               : prev
           );
         }
       } catch (err) {
         setHealth((prev) =>
           prev?.metrics
-            ? { ...prev, metrics: { ...prev.metrics, osdEnabled: previous } }
+            ? {
+                ...prev,
+                metrics: {
+                  ...prev.metrics,
+                  osdMode: previousMode,
+                  osdEnabled: previousEnabled,
+                },
+              }
             : prev
         );
         setLastError(err instanceof Error ? err.message : String(err));
@@ -1248,7 +1294,7 @@ export function PCRemoteProvider({ children }: { children: React.ReactNode }) {
     wakeOnly,
     stopStreaming,
     setConsoleEnvironmentMode,
-    toggleOsd,
+    setOsdMode,
     sleepPC,
     shutdownPC,
     fetchShortcuts,

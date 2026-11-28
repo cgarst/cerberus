@@ -89,12 +89,24 @@ namespace RoomAgent.Tests
             return true;
         }
         public bool OsdEnabled = true;
+        public string OsdMode = "afterburner";
         public bool? GetOsdEnabled() { return OsdEnabled; }
         public bool TrySetOsdEnabled(bool enabled, out bool currentState)
         {
             Calls.Add("osd:" + (enabled ? "on" : "off"));
             OsdEnabled = enabled;
+            OsdMode = enabled ? "afterburner" : "off";
             currentState = OsdEnabled;
+            return true;
+        }
+        public string GetOsdMode() { return OsdMode; }
+        public bool TrySetOsdMode(string mode, out string currentMode, out bool currentEnabled)
+        {
+            Calls.Add("osd-mode:" + mode);
+            OsdMode = mode;
+            OsdEnabled = mode != "off";
+            currentMode = OsdMode;
+            currentEnabled = OsdEnabled;
             return true;
         }
         public bool IsMonitorAvailable(string expectedMonitor) { return MonitorAvailableResult; }
@@ -229,6 +241,7 @@ namespace RoomAgent.Tests
             Run("UpdateServiceVersioningAndManifest", TestUpdateServiceVersioningAndManifest);
             Run("ConsoleEnvironmentMovesCursorToLowerRightCorner", TestConsoleEnvironmentMovesCursorToLowerRightCorner);
             Run("RemoteInputProcessorParsesAndClampsPayloads", TestRemoteInputProcessorParsesAndClampsPayloads);
+            Run("OsdModeMutuallyExclusiveTransitions", TestOsdModeMutuallyExclusiveTransitions);
 
             Console.WriteLine(string.Format("Tests complete: {0} passed, {1} failed", _passed, _failed));
             return _failed == 0 ? 0 : 1;
@@ -2305,6 +2318,27 @@ namespace RoomAgent.Tests
 
             Assert(!RemoteInputProcessor.ProcessJsonMessage("{\"t\":\"btn\",\"b\":\"invalid\"}", sender, out err), "Expected invalid button to fail");
             Assert(err == "invalid_button", "Expected invalid_button error");
+        }
+
+        private static void TestOsdModeMutuallyExclusiveTransitions()
+        {
+            AgentConfig cfg = CreateTestConfig();
+            FakeSystemActions actions = new FakeSystemActions();
+            FakeIdleMonitor idle = new FakeIdleMonitor();
+            using (RoomController ctrl = new RoomController(cfg, actions, idle, new FakeLogger()))
+            {
+                string mode;
+                bool enabled;
+                Assert(ctrl.TrySetOsdMode("radeon", out mode, out enabled), "Expected setting radeon mode to succeed");
+                Assert(mode == "radeon" && enabled, "Expected radeon mode active");
+                Assert(ctrl.GetOsdMode() == "radeon", "Expected GetOsdMode to return radeon");
+
+                Assert(ctrl.TrySetOsdMode("afterburner", out mode, out enabled), "Expected switching to afterburner to succeed");
+                Assert(mode == "afterburner" && enabled, "Expected afterburner mode active");
+
+                Assert(ctrl.TrySetOsdMode("off", out mode, out enabled), "Expected switching to off to succeed");
+                Assert(mode == "off" && !enabled, "Expected osd disabled when off");
+            }
         }
     }
 }

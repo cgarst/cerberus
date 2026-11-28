@@ -4,6 +4,7 @@ import {
   getBaseUrl,
   HealthResponse,
   OpenWindow,
+  OsdMode,
   OsdResponse,
   PCConnectionConfig,
   ShortcutsResponse,
@@ -195,14 +196,13 @@ export class RoomAgentClient {
     );
   }
 
-  async setOsdEnabled(enabled: boolean): Promise<boolean | null | undefined> {
-    const resp = await this.request<OsdResponse>(
+  async setOsdMode(mode: OsdMode): Promise<OsdResponse> {
+    return this.request<OsdResponse>(
       'POST',
       '/api/osd',
-      { enabled },
+      { mode },
       5000
     );
-    return resp.osdEnabled;
   }
 
   async sleepPC(): Promise<void> {

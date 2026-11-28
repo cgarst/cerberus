@@ -82,6 +82,8 @@ namespace RoomAgent
         bool OpenTaskView();
         bool? GetOsdEnabled();
         bool TrySetOsdEnabled(bool enabled, out bool currentState);
+        string GetOsdMode();
+        bool TrySetOsdMode(string mode, out string currentMode, out bool currentEnabled);
         bool IsMonitorAvailable(string expectedMonitor);
         void SwitchDisplay(EnvironmentConfig env);
         bool VerifyOutputDevices(EnvironmentConfig env, bool checkAudio, out string details);
@@ -1014,13 +1016,36 @@ namespace RoomAgent
 
         public bool? GetOsdEnabled()
         {
-            return NativeInterop.GetRtssOsdEnabled();
+            string mode;
+            string[] available;
+            bool? enabled;
+            NativeInterop.GetOsdState(out mode, out available, out enabled);
+            return enabled;
         }
 
         public bool TrySetOsdEnabled(bool enabled, out bool currentState)
         {
-            bool ok = NativeInterop.TrySetRtssOsdEnabled(enabled, out currentState);
-            _logger.Info("TrySetOsdEnabled (" + enabled + ") -> ok=" + ok + ", state=" + currentState);
+            string targetMode = enabled
+                ? (NativeInterop.GetRtssOsdEnabled().HasValue ? "afterburner" : "radeon")
+                : "off";
+            string currentMode;
+            bool ok = TrySetOsdMode(targetMode, out currentMode, out currentState);
+            return ok;
+        }
+
+        public string GetOsdMode()
+        {
+            string mode;
+            string[] available;
+            bool? enabled;
+            NativeInterop.GetOsdState(out mode, out available, out enabled);
+            return mode;
+        }
+
+        public bool TrySetOsdMode(string mode, out string currentMode, out bool currentEnabled)
+        {
+            bool ok = NativeInterop.TrySetOsdMode(mode, out currentMode, out currentEnabled);
+            _logger.Info("TrySetOsdMode (" + mode + ") -> ok=" + ok + ", mode=" + currentMode + ", enabled=" + currentEnabled);
             return ok;
         }
 

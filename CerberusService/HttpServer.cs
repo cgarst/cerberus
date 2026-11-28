@@ -538,7 +538,9 @@ namespace RoomAgent
                                 { "frameAppName", metrics.FrameAppName },
                                 { "frameAppIcon", metrics.FrameAppIcon },
                                 { "frameAppHeroUrl", metrics.FrameAppHeroUrl },
-                                { "osdEnabled", metrics.OsdEnabled }
+                                { "osdEnabled", metrics.OsdEnabled },
+                                { "osdMode", metrics.OsdMode },
+                                { "availableOsdModes", metrics.AvailableOsdModes }
                             };
                         }
                     }
@@ -940,6 +942,7 @@ namespace RoomAgent
 
                 if (method == "POST" && path == "/api/osd")
                 {
+                    string requestedMode = req.QueryString["mode"];
                     bool? requested = null;
                     string qEnabled = req.QueryString["enabled"];
                     bool parsed;
@@ -947,11 +950,19 @@ namespace RoomAgent
                     {
                         requested = parsed;
                     }
-                    else
+                    else if (string.IsNullOrWhiteSpace(requestedMode))
                     {
                         Dictionary<string, object> reqBody = ReadJsonBody(req);
+                        object rawMode;
+                        if (reqBody != null && reqBody.TryGetValue("mode", out rawMode) && rawMode != null)
+                        {
+                            requestedMode = rawMode is JsonElement jeMode
+                                ? (jeMode.ValueKind == JsonValueKind.String ? jeMode.GetString() : null)
+                                : rawMode.ToString();
+                        }
+
                         object rawVal;
-                        if (reqBody != null && reqBody.TryGetValue("enabled", out rawVal) && rawVal != null)
+                        if (string.IsNullOrWhiteSpace(requestedMode) && reqBody != null && reqBody.TryGetValue("enabled", out rawVal) && rawVal != null)
                         {
                             if (rawVal is JsonElement jeEnabled)
                             {
@@ -970,27 +981,48 @@ namespace RoomAgent
                         }
                     }
 
-                    bool targetEnabled;
-                    if (requested.HasValue)
+                    bool actualState;
+                    string actualMode;
+                    if (!string.IsNullOrWhiteSpace(requestedMode))
                     {
-                        targetEnabled = requested.Value;
+                        string normalizedMode = requestedMode.Trim().ToLowerInvariant();
+                        if (normalizedMode != "off" && normalizedMode != "afterburner" && normalizedMode != "radeon")
+                        {
+                            WriteJson(res, 400, "{\"error\":\"invalid_osd_mode\"}");
+                            return;
+                        }
+
+                        if (!_controller.TrySetOsdMode(normalizedMode, out actualMode, out actualState))
+                        {
+                            WriteJson(res, 500, "{\"error\":\"osd_toggle_failed\"}");
+                            return;
+                        }
                     }
                     else
                     {
-                        bool? current = _controller.GetOsdEnabled();
-                        targetEnabled = !(current ?? true);
-                    }
+                        bool targetEnabled;
+                        if (requested.HasValue)
+                        {
+                            targetEnabled = requested.Value;
+                        }
+                        else
+                        {
+                            bool? current = _controller.GetOsdEnabled();
+                            targetEnabled = !(current ?? true);
+                        }
 
-                    bool actualState;
-                    if (!_controller.TrySetOsdEnabled(targetEnabled, out actualState))
-                    {
-                        WriteJson(res, 500, "{\"error\":\"osd_toggle_failed\"}");
-                        return;
+                        if (!_controller.TrySetOsdEnabled(targetEnabled, out actualState))
+                        {
+                            WriteJson(res, 500, "{\"error\":\"osd_toggle_failed\"}");
+                            return;
+                        }
+                        actualMode = _controller.GetOsdMode() ?? (actualState ? "afterburner" : "off");
                     }
 
                     WriteJson(res, 200, JsonSerializer.Serialize(new Dictionary<string, object>
                     {
                         { "status", "ok" },
+                        { "osdMode", actualMode },
                         { "osdEnabled", actualState }
                     }, JsonOptions));
                     return;

@@ -3,6 +3,7 @@ import {
   DesktopShortcut,
   HealthResponse,
   OpenWindow,
+  OsdMode,
 } from '../api/models';
 
 /** Build a crisp inline SVG badge data URL for demo shortcuts and windows. */
@@ -227,7 +228,7 @@ export function buildDemoHealth(params: {
   mode: string;
   streamingActive?: boolean;
   consoleEnvironmentMode: ConsoleEnvironmentMode;
-  osdEnabled: boolean;
+  osdMode: OsdMode;
   activeGame: string | null;
   fpsHistory: number[];
   ftHistory: number[];
@@ -237,7 +238,7 @@ export function buildDemoHealth(params: {
     mode,
     streamingActive = false,
     consoleEnvironmentMode,
-    osdEnabled,
+    osdMode,
     activeGame,
     fpsHistory,
     ftHistory,
@@ -324,7 +325,9 @@ export function buildDemoHealth(params: {
       frametimeHistoryMs: isGameActive ? ftHistory : [],
       frameAppName: activeGame,
       frameAppIcon: null,
-      osdEnabled,
+      osdEnabled: osdMode !== 'off',
+      osdMode,
+      availableOsdModes: ['off', 'afterburner', 'radeon'],
     },
   };
 }

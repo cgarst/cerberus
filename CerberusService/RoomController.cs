@@ -309,6 +309,16 @@ namespace RoomAgent
             return _actions.TrySetOsdEnabled(enabled, out currentState);
         }
 
+        public string GetOsdMode()
+        {
+            return _actions.GetOsdMode();
+        }
+
+        public bool TrySetOsdMode(string mode, out string currentMode, out bool currentEnabled)
+        {
+            return _actions.TrySetOsdMode(mode, out currentMode, out currentEnabled);
+        }
+
         public int CloseAllOpenWindows()
         {
             IList<OpenWindowInfo> windows = _actions.GetOpenWindows();

@@ -13,7 +13,7 @@ export const CONSOLE_ENVIRONMENT_MODES: {
   { id: 'xbox', shortLabel: 'Xbox', fullLabel: 'Xbox Mode' },
 ];
 
-export type OsdMode = 'off' | 'afterburner';
+export type OsdMode = 'off' | 'afterburner' | 'radeon';
 
 export const OSD_MODES: {
   id: OsdMode;
@@ -22,6 +22,7 @@ export const OSD_MODES: {
 }[] = [
   { id: 'off', shortLabel: 'Off', fullLabel: 'Off' },
   { id: 'afterburner', shortLabel: 'Afterburner', fullLabel: 'Afterburner' },
+  { id: 'radeon', shortLabel: 'Radeon', fullLabel: 'Radeon' },
 ];
 
 export type RoomMode = 'office' | 'living-room' | 'streaming';
@@ -56,6 +57,8 @@ export interface SystemMetrics {
   frameAppIcon?: string | null;
   frameAppHeroUrl?: string | null;
   osdEnabled?: boolean | null;
+  osdMode?: OsdMode | null;
+  availableOsdModes?: OsdMode[] | null;
 }
 
 export interface HealthResponse {
@@ -111,6 +114,7 @@ export interface WindowsResponse {
 export interface OsdResponse {
   status?: string | null;
   osdEnabled?: boolean | null;
+  osdMode?: OsdMode | null;
 }
 
 export interface UpdateStatusResponse {

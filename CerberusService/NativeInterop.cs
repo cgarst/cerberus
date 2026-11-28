@@ -38,12 +38,14 @@ namespace RoomAgent
         private const uint MOUSEEVENTF_HWHEEL = 0x1000;
         private const ushort VK_BACK = 0x08;
         private const ushort VK_RETURN = 0x0D;
+        private const ushort VK_SHIFT = 0x10;
         private const ushort VK_CONTROL = 0x11;
         private const ushort VK_LEFT = 0x25;
         private const ushort VK_RIGHT = 0x27;
         private const ushort VK_LWIN = 0x5B;
         private const ushort VK_TAB = 0x09;
         private const ushort VK_D = 0x44;
+        private const ushort VK_O = 0x4F;
         private const ushort VK_F4 = 0x73;
         private const ushort VK_F11 = 0x7A;
         private const string VirtualDesktopsRegPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VirtualDesktops";
@@ -2745,6 +2747,249 @@ namespace RoomAgent
                     return false;
                 }
             }
+        }
+
+        #endregion
+
+        #region Radeon OSD Control
+
+        private const string AmdCnPerformanceRegPath = @"Software\AMD\CN\Performance";
+        private const string AmdDvrRegPath = @"Software\AMD\DVR";
+
+        private static bool IsProcessRunning(string processName)
+        {
+            Process[] procs = null;
+            try
+            {
+                procs = Process.GetProcessesByName(processName);
+                return procs.Length > 0;
+            }
+            catch
+            {
+                return false;
+            }
+            finally
+            {
+                if (procs != null)
+                {
+                    for (int i = 0; i < procs.Length; i++)
+                    {
+                        procs[i].Dispose();
+                    }
+                }
+            }
+        }
+
+        public static bool IsRadeonOsdAvailable()
+        {
+            try
+            {
+                string adlPath = Path.Combine(Environment.SystemDirectory, "atiadlxx.dll");
+                if (!File.Exists(adlPath))
+                {
+                    return false;
+                }
+
+                using (RegistryKey perfKey = Registry.CurrentUser.OpenSubKey(AmdCnPerformanceRegPath))
+                {
+                    if (perfKey == null || perfKey.GetValue("MetricsOverlayState") == null)
+                    {
+                        return false;
+                    }
+                }
+
+                using (RegistryKey dvrKey = Registry.CurrentUser.OpenSubKey(AmdDvrRegPath))
+                {
+                    if (dvrKey != null)
+                    {
+                        object hkDisabled = dvrKey.GetValue("HotkeysDisabled");
+                        if (hkDisabled != null && Convert.ToInt32(hkDisabled) != 0)
+                        {
+                            return false;
+                        }
+                    }
+                }
+
+                return IsProcessRunning("AMDRSServ") || IsProcessRunning("RadeonSoftware");
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public static bool? GetRadeonOsdEnabled()
+        {
+            if (!IsRadeonOsdAvailable())
+            {
+                return null;
+            }
+
+            try
+            {
+                using (RegistryKey perfKey = Registry.CurrentUser.OpenSubKey(AmdCnPerformanceRegPath))
+                {
+                    object val = perfKey != null ? perfKey.GetValue("MetricsOverlayState") : null;
+                    if (val == null)
+                    {
+                        return null;
+                    }
+                    return Convert.ToInt32(val) != 0;
+                }
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        public static bool TrySetRadeonOsdEnabled(bool enabled, out bool currentState)
+        {
+            currentState = enabled;
+            bool? current = GetRadeonOsdEnabled();
+            if (!current.HasValue)
+            {
+                currentState = false;
+                return false;
+            }
+
+            if (current.Value == enabled)
+            {
+                currentState = enabled;
+                return true;
+            }
+
+            INPUT[] inputs = new INPUT[]
+            {
+                CreateKeyInput(VK_CONTROL, 0),
+                CreateKeyInput(VK_SHIFT, 0),
+                CreateKeyInput(VK_O, 0),
+                CreateKeyInput(VK_O, KEYEVENTF_KEYUP),
+                CreateKeyInput(VK_SHIFT, KEYEVENTF_KEYUP),
+                CreateKeyInput(VK_CONTROL, KEYEVENTF_KEYUP)
+            };
+
+            uint sent = SendInput((uint)inputs.Length, inputs, Marshal.SizeOf(typeof(INPUT)));
+            if (sent != inputs.Length)
+            {
+                currentState = GetRadeonOsdEnabled() ?? current.Value;
+                return false;
+            }
+
+            bool? after = null;
+            for (int attempt = 0; attempt < 10; attempt++)
+            {
+                System.Threading.Thread.Sleep(30);
+                after = GetRadeonOsdEnabled();
+                if (after.HasValue && after.Value == enabled)
+                {
+                    currentState = after.Value;
+                    return true;
+                }
+            }
+
+            currentState = after ?? current.Value;
+            return after.HasValue && after.Value == enabled;
+        }
+
+        public static void GetOsdState(out string osdMode, out string[] availableModes, out bool? osdEnabled)
+        {
+            bool? rtss = GetRtssOsdEnabled();
+            bool? radeon = GetRadeonOsdEnabled();
+
+            if (!rtss.HasValue && !radeon.HasValue)
+            {
+                osdMode = null;
+                availableModes = null;
+                osdEnabled = null;
+                return;
+            }
+
+            var modes = new System.Collections.Generic.List<string>(3) { "off" };
+            if (rtss.HasValue)
+            {
+                modes.Add("afterburner");
+            }
+            if (radeon.HasValue)
+            {
+                modes.Add("radeon");
+            }
+            availableModes = modes.ToArray();
+
+            if (rtss == true)
+            {
+                osdMode = "afterburner";
+                osdEnabled = true;
+            }
+            else if (radeon == true)
+            {
+                osdMode = "radeon";
+                osdEnabled = true;
+            }
+            else
+            {
+                osdMode = "off";
+                osdEnabled = false;
+            }
+        }
+
+        public static bool TrySetOsdMode(string mode, out string currentMode, out bool currentEnabled)
+        {
+            string normalized = (mode ?? string.Empty).Trim().ToLowerInvariant();
+            bool? rtss = GetRtssOsdEnabled();
+            bool? radeon = GetRadeonOsdEnabled();
+            bool ok = false;
+
+            if (normalized == "off")
+            {
+                ok = true;
+                if (rtss == true)
+                {
+                    bool ignored;
+                    ok &= TrySetRtssOsdEnabled(false, out ignored);
+                }
+                if (radeon == true)
+                {
+                    bool ignored;
+                    ok &= TrySetRadeonOsdEnabled(false, out ignored);
+                }
+            }
+            else if (normalized == "afterburner")
+            {
+                if (rtss.HasValue)
+                {
+                    bool offOk = true;
+                    if (radeon == true)
+                    {
+                        bool ignored;
+                        offOk = TrySetRadeonOsdEnabled(false, out ignored);
+                    }
+                    bool ignoredRtss;
+                    ok = offOk && TrySetRtssOsdEnabled(true, out ignoredRtss);
+                }
+            }
+            else if (normalized == "radeon")
+            {
+                if (radeon.HasValue)
+                {
+                    bool offOk = true;
+                    if (rtss == true)
+                    {
+                        bool ignored;
+                        offOk = TrySetRtssOsdEnabled(false, out ignored);
+                    }
+                    bool ignoredRadeon;
+                    ok = offOk && TrySetRadeonOsdEnabled(true, out ignoredRadeon);
+                }
+            }
+
+            string resolvedMode;
+            string[] ignoredModes;
+            bool? resolvedEnabled;
+            GetOsdState(out resolvedMode, out ignoredModes, out resolvedEnabled);
+            currentMode = resolvedMode;
+            currentEnabled = resolvedEnabled ?? false;
+            return ok && resolvedMode == normalized;
         }
 
         #endregion

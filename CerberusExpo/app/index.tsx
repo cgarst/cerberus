@@ -721,15 +721,22 @@ function OnlineSection({
   ) : null;
 
   const osdEnabled = vm.health?.metrics?.osdEnabled;
-  const hasOsd = osdEnabled !== null && osdEnabled !== undefined;
-  const currentOsdMode: OsdMode = osdEnabled ? 'afterburner' : 'off';
+  const availableOsdIds = vm.health?.metrics?.availableOsdModes;
+  const visibleOsdModes = availableOsdIds
+    ? OSD_MODES.filter((m) => availableOsdIds.includes(m.id))
+    : osdEnabled !== null && osdEnabled !== undefined
+      ? OSD_MODES.filter((m) => m.id === 'off' || m.id === 'afterburner')
+      : [];
+  const hasOsd = visibleOsdModes.length > 0;
+  const currentOsdMode: OsdMode =
+    vm.health?.metrics?.osdMode ?? (osdEnabled ? 'afterburner' : 'off');
 
   const osdSection = hasOsd ? (
     <View style={styles.section}>
       <Text style={styles.sectionHeader}>OSD</Text>
 
       <View style={styles.steamSubNav}>
-        {OSD_MODES.map((m) => {
+        {visibleOsdModes.map((m) => {
           const active = currentOsdMode === m.id;
           return (
             <SteamPressable
@@ -738,7 +745,7 @@ function OnlineSection({
               onPress={() => {
                 triggerHaptic('light');
                 if (!active) {
-                  void vm.toggleOsd(m.id === 'afterburner');
+                  void vm.setOsdMode(m.id);
                 }
               }}
               style={[

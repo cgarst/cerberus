@@ -34,6 +34,8 @@ namespace RoomAgent
         public string FrameAppIcon { get; set; }
         public string FrameAppHeroUrl { get; set; }
         public bool? OsdEnabled { get; set; }
+        public string OsdMode { get; set; }
+        public string[] AvailableOsdModes { get; set; }
     }
 
     public interface ISystemMonitor : IDisposable
@@ -107,6 +109,10 @@ namespace RoomAgent
         {
             lock (_lock)
             {
+                string liveOsdMode;
+                string[] liveAvailableOsdModes;
+                bool? liveOsdEnabled;
+                NativeInterop.GetOsdState(out liveOsdMode, out liveAvailableOsdModes, out liveOsdEnabled);
                 return new SystemMetricsSnapshot
                 {
                     CpuName = _latest.CpuName,
@@ -129,7 +135,9 @@ namespace RoomAgent
                     FrameAppName = _latest.FrameAppName,
                     FrameAppIcon = _latest.FrameAppIcon,
                     FrameAppHeroUrl = _latest.FrameAppHeroUrl,
-                    OsdEnabled = NativeInterop.GetRtssOsdEnabled() ?? _latest.OsdEnabled
+                    OsdEnabled = liveOsdEnabled ?? _latest.OsdEnabled,
+                    OsdMode = liveOsdMode ?? _latest.OsdMode,
+                    AvailableOsdModes = liveAvailableOsdModes ?? _latest.AvailableOsdModes
                 };
             }
         }
@@ -195,7 +203,13 @@ namespace RoomAgent
                 }
                 next.FpsHistory = BuildHistoryArray(_fpsRing);
                 next.FrametimeHistoryMs = BuildHistoryArray(_frametimeRing);
-                next.OsdEnabled = NativeInterop.GetRtssOsdEnabled();
+                string osdMode;
+                string[] availableOsdModes;
+                bool? osdEnabled;
+                NativeInterop.GetOsdState(out osdMode, out availableOsdModes, out osdEnabled);
+                next.OsdEnabled = osdEnabled;
+                next.OsdMode = osdMode;
+                next.AvailableOsdModes = availableOsdModes;
 
                 double? ramPct;
                 double? ramUsedGb;
