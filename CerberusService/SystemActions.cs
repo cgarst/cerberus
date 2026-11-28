@@ -67,6 +67,7 @@ namespace RoomAgent
         void ShowDesktopIcons();
         void EnterXboxMode();
         void ExitXboxMode();
+        void MoveCursorToLowerRightCorner();
         bool HasPendingConsoleEnvironmentRevert();
         void MinimizeAllWindows();
         void RestoreMinimizedWindows();
@@ -564,6 +565,20 @@ namespace RoomAgent
 
             List<WallpaperHistoryEntry> entries = System.Text.Json.JsonSerializer.Deserialize<List<WallpaperHistoryEntry>>(json);
             return entries ?? new List<WallpaperHistoryEntry>();
+        }
+
+        public void MoveCursorToLowerRightCorner()
+        {
+            int x, y;
+            bool ok = NativeInterop.MoveCursorToLowerRightCorner(out x, out y);
+            if (ok)
+            {
+                _logger.Info("MoveCursorToLowerRightCorner -> True (" + x + ", " + y + ")");
+            }
+            else
+            {
+                _logger.Warn("MoveCursorToLowerRightCorner -> False (" + x + ", " + y + ")");
+            }
         }
 
         public void MinimizeAllWindows()

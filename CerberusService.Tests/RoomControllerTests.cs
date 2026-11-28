@@ -52,6 +52,7 @@ namespace RoomAgent.Tests
         public void ShowDesktopIcons() { Calls.Add("icons:show"); }
         public void EnterXboxMode() { Calls.Add("xbox:enter"); }
         public void ExitXboxMode() { Calls.Add("xbox:exit"); }
+        public void MoveCursorToLowerRightCorner() { Calls.Add("cursor:lower-right"); }
         public bool HasPendingConsoleEnvironmentRevert() { return PendingConsoleEnvironmentRevert; }
         public void MinimizeAllWindows() { Calls.Add("minimize-all"); }
         public void RestoreMinimizedWindows() { Calls.Add("minimize-all:restore"); }
@@ -226,6 +227,7 @@ namespace RoomAgent.Tests
             Run("StreamingConsoleEnvironmentRevertDisabledKeepsMode", TestStreamingConsoleEnvironmentRevertDisabledKeepsMode);
             Run("StreamingConsoleEnvironmentInheritAndStopStreamingRevert", TestStreamingConsoleEnvironmentInheritAndStopStreamingRevert);
             Run("UpdateServiceVersioningAndManifest", TestUpdateServiceVersioningAndManifest);
+            Run("ConsoleEnvironmentMovesCursorToLowerRightCorner", TestConsoleEnvironmentMovesCursorToLowerRightCorner);
 
             Console.WriteLine(string.Format("Tests complete: {0} passed, {1} failed", _passed, _failed));
             return _failed == 0 ? 0 : 1;
@@ -297,14 +299,15 @@ namespace RoomAgent.Tests
             {
                 ctrl.SwitchToLivingRoomAsync(true).GetAwaiter().GetResult();
                 Assert(ctrl.CurrentMode == RoomMode.LivingRoom, "Expected LivingRoom mode");
-                Assert(actions.Calls.Count == 7, "Expected 7 actions, got " + actions.Calls.Count);
+                Assert(actions.Calls.Count == 8, "Expected 8 actions, got " + actions.Calls.Count);
                 Assert(actions.Calls[0] == "windows:save", "Expected save window positions first");
                 Assert(actions.Calls[1] == "vdesktop:new", "Expected fresh virtual desktop second");
                 Assert(actions.Calls[2] == "icons:hide", "Expected hide desktop icons third");
                 Assert(actions.Calls[3] == "display:LG TV SSCR2@3840x2160:120:hdr=True", "Expected display switch fourth");
                 Assert(actions.Calls[4] == "verify:LG TV SSCR2|LG TV SSCR2", "Expected verify fifth");
                 Assert(actions.Calls[5] == "taskbar:hide", "Expected hide taskbar sixth");
-                Assert(actions.Calls[6] == "steam:open", "Expected Steam Big Picture seventh");
+                Assert(actions.Calls[6] == "cursor:lower-right", "Expected cursor move to lower-right seventh");
+                Assert(actions.Calls[7] == "steam:open", "Expected Steam Big Picture eighth");
             }
         }
 
@@ -2234,6 +2237,35 @@ namespace RoomAgent.Tests
             Assert(channels.ContainsKey("alpha"), "Manifest should contain alpha channel");
             Assert(channels["alpha"].Version == "1.0.0-alpha.20261129-1234567", "Manifest alpha version mismatch");
             Assert(channels["alpha"].Sha256 == "abcd", "Manifest alpha sha256 mismatch");
+        }
+
+        private static void TestConsoleEnvironmentMovesCursorToLowerRightCorner()
+        {
+            string[] activeModes = new[] { "virtual-desktop", "xbox", "minimize-all" };
+            for (int i = 0; i < activeModes.Length; i++)
+            {
+                string mode = activeModes[i];
+                AgentConfig cfg = CreateTestConfig();
+                cfg.LivingRoom.ConsoleEnvironmentMode = mode;
+                FakeSystemActions actions = new FakeSystemActions();
+                FakeIdleMonitor idle = new FakeIdleMonitor();
+                using (RoomController ctrl = new RoomController(cfg, actions, idle, new FakeLogger()))
+                {
+                    ctrl.SwitchToLivingRoomAsync(true).GetAwaiter().GetResult();
+                    Assert(actions.Calls.Contains("cursor:lower-right"), "Expected cursor move when entering " + mode);
+                    int displayIdx = actions.Calls.IndexOf("display:LG TV SSCR2@3840x2160:120:hdr=True");
+                    int cursorIdx = actions.Calls.IndexOf("cursor:lower-right");
+                    Assert(cursorIdx > displayIdx, "Expected cursor move after display switch for " + mode);
+
+                    actions.Calls.Clear();
+                    ctrl.SetConsoleEnvironmentModeAsync("off").GetAwaiter().GetResult();
+                    Assert(!actions.Calls.Contains("cursor:lower-right"), "Did not expect cursor move when setting console environment off");
+
+                    actions.Calls.Clear();
+                    ctrl.SetConsoleEnvironmentModeAsync(mode).GetAwaiter().GetResult();
+                    Assert(actions.Calls.Contains("cursor:lower-right"), "Expected cursor move when switching console environment in-place to " + mode);
+                }
+            }
         }
     }
 }

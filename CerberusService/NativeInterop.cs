@@ -179,6 +179,15 @@ namespace RoomAgent
         [DllImport("user32.dll", SetLastError = true)]
         private static extern bool SetWindowPlacement(IntPtr hWnd, [In] ref WINDOWPLACEMENT lpwndpl);
 
+        private const int SM_CXSCREEN = 0;
+        private const int SM_CYSCREEN = 1;
+
+        [DllImport("user32.dll")]
+        private static extern int GetSystemMetrics(int nIndex);
+
+        [DllImport("user32.dll")]
+        private static extern bool SetCursorPos(int X, int Y);
+
         [DllImport("user32.dll", SetLastError = true)]
         private static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
 
@@ -2726,5 +2735,21 @@ namespace RoomAgent
         }
 
         #endregion
+
+        public static bool MoveCursorToLowerRightCorner(out int x, out int y)
+        {
+            int width = GetSystemMetrics(SM_CXSCREEN);
+            int height = GetSystemMetrics(SM_CYSCREEN);
+            if (width <= 0 || height <= 0)
+            {
+                x = 0;
+                y = 0;
+                return false;
+            }
+
+            x = width - 1;
+            y = height - 1;
+            return SetCursorPos(x, y);
+        }
     }
 }

@@ -988,6 +988,11 @@ namespace RoomAgent
             {
                 _actions.EnterXboxMode();
             }
+
+            if (!IsNormalDesktopMode(consoleMode))
+            {
+                _actions.MoveCursorToLowerRightCorner();
+            }
         }
 
         private void RevertConsoleEnvironment()
