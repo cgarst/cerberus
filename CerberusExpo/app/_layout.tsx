@@ -55,9 +55,9 @@ export default function RootLayout() {
           />
           <Stack.Screen
             name="shortcuts"
-            options={{ title: 'DESKTOP SHORTCUTS' }}
+            options={{ title: 'Desktop Shortcuts' }}
           />
-          <Stack.Screen name="windows" options={{ title: 'OPEN WINDOWS' }} />
+          <Stack.Screen name="windows" options={{ title: 'Open Windows' }} />
           <Stack.Screen
             name="settings"
             options={{
