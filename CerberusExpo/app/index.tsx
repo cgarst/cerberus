@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useNavigation, useRouter } from 'expo-router';
+import { Stack, useNavigation, useRouter } from 'expo-router';
 import { CONSOLE_ENVIRONMENT_MODES, getBaseUrl, OSD_MODES, OsdMode } from '../src/api/models';
 import { PowerSection } from '../src/components/PowerSection';
 import { RoomModeCard } from '../src/components/RoomModeCard';
@@ -101,6 +101,7 @@ export default function HomeScreen() {
   }, [heroUri]);
 
   useLayoutEffect(() => {
+    if (Platform.OS === 'ios') return;
     navigation.setOptions({
       headerRight: () => (
         <View style={styles.headerActions}>
@@ -157,7 +158,28 @@ export default function HomeScreen() {
       : 'Idle';
 
   return (
-    <ScrollView
+    <>
+      {Platform.OS === 'ios' && (
+        <Stack.Toolbar placement="right">
+          <Stack.Toolbar.Button
+            icon="arrow.clockwise"
+            accessibilityLabel="Refresh"
+            onPress={() => {
+              triggerHaptic('light');
+              void vm.refreshNow();
+            }}
+          />
+          <Stack.Toolbar.Button
+            icon="gearshape"
+            accessibilityLabel="Settings"
+            onPress={() => {
+              triggerHaptic('light');
+              router.push('/settings');
+            }}
+          />
+        </Stack.Toolbar>
+      )}
+      <ScrollView
       style={styles.scroll}
       contentContainerStyle={styles.scrollContent}
       refreshControl={
@@ -280,6 +302,7 @@ export default function HomeScreen() {
         )}
       </View>
     </ScrollView>
+    </>
   );
 }
 

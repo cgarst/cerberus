@@ -1,7 +1,7 @@
 import React, { useEffect, useLayoutEffect } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from 'expo-router';
+import { Stack, useNavigation } from 'expo-router';
 import { ShortcutsPanel } from '../src/components/ShortcutsPanel';
 import { SteamPressable } from '../src/components/SteamSurface';
 import { usePCRemote } from '../src/state/usePCRemote';
@@ -13,6 +13,7 @@ export default function ShortcutsScreen() {
   const navigation = useNavigation();
 
   useLayoutEffect(() => {
+    if (Platform.OS === 'ios') return;
     navigation.setOptions({
       headerRight: () => (
         <SteamPressable
@@ -40,11 +41,26 @@ export default function ShortcutsScreen() {
   }, [vm.pcOnline, vm.fetchShortcuts]);
 
   return (
-    <View style={styles.screen}>
-      <View style={styles.inner}>
-        <ShortcutsPanel />
+    <>
+      {Platform.OS === 'ios' && (
+        <Stack.Toolbar placement="right">
+          <Stack.Toolbar.Button
+            icon="arrow.clockwise"
+            accessibilityLabel="Refresh"
+            disabled={vm.busy || !vm.pcOnline}
+            onPress={() => {
+              triggerHaptic('light');
+              void vm.fetchShortcuts();
+            }}
+          />
+        </Stack.Toolbar>
+      )}
+      <View style={styles.screen}>
+        <View style={styles.inner}>
+          <ShortcutsPanel />
+        </View>
       </View>
-    </View>
+    </>
   );
 }
 

@@ -9,7 +9,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, useRouter } from 'expo-router';
+import { Stack, useNavigation, useRouter } from 'expo-router';
 import { normalizeHostInput } from '../src/api/models';
 import { SteamPressable, SteamSurface } from '../src/components/SteamSurface';
 import { usePCRemote } from '../src/state/usePCRemote';
@@ -65,6 +65,7 @@ export default function SettingsScreen() {
   }, []);
 
   useLayoutEffect(() => {
+    if (Platform.OS === 'ios') return;
     navigation.setOptions({
       headerRight: () => (
         <SteamPressable
@@ -83,7 +84,21 @@ export default function SettingsScreen() {
   }, [commitHostAndPort, navigation, router]);
 
   return (
-    <ScrollView
+    <>
+      {Platform.OS === 'ios' && (
+        <Stack.Toolbar placement="right">
+          <Stack.Toolbar.Button
+            onPress={() => {
+              triggerHaptic('light');
+              commitHostAndPort();
+              router.back();
+            }}
+          >
+            Done
+          </Stack.Toolbar.Button>
+        </Stack.Toolbar>
+      )}
+      <ScrollView
       style={styles.scroll}
       contentContainerStyle={styles.scrollContent}
       keyboardShouldPersistTaps="handled"
@@ -240,6 +255,7 @@ export default function SettingsScreen() {
         </View>
       </View>
     </ScrollView>
+    </>
   );
 }
 

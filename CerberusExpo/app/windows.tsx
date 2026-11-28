@@ -1,7 +1,7 @@
 import React, { useEffect, useLayoutEffect } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from 'expo-router';
+import { Stack, useNavigation } from 'expo-router';
 import { SteamPressable } from '../src/components/SteamSurface';
 import { WindowsPanel } from '../src/components/WindowsPanel';
 import { usePCRemote } from '../src/state/usePCRemote';
@@ -13,6 +13,7 @@ export default function WindowsScreen() {
   const navigation = useNavigation();
 
   useLayoutEffect(() => {
+    if (Platform.OS === 'ios') return;
     navigation.setOptions({
       headerRight: () => (
         <SteamPressable
@@ -40,11 +41,26 @@ export default function WindowsScreen() {
   }, [vm.pcOnline, vm.fetchWindows]);
 
   return (
-    <View style={styles.screen}>
-      <View style={styles.inner}>
-        <WindowsPanel />
+    <>
+      {Platform.OS === 'ios' && (
+        <Stack.Toolbar placement="right">
+          <Stack.Toolbar.Button
+            icon="arrow.clockwise"
+            accessibilityLabel="Refresh"
+            disabled={vm.busy || !vm.pcOnline}
+            onPress={() => {
+              triggerHaptic('light');
+              void vm.fetchWindows();
+            }}
+          />
+        </Stack.Toolbar>
+      )}
+      <View style={styles.screen}>
+        <View style={styles.inner}>
+          <WindowsPanel />
+        </View>
       </View>
-    </View>
+    </>
   );
 }
 
