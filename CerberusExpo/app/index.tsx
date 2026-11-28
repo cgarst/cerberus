@@ -785,6 +785,7 @@ function OnlineSection({
           pcHost={vm.pcHost}
           onSwitchMode={(m) => void vm.switchMode(m)}
           onStopStreaming={(m) => void vm.stopStreaming(m)}
+          onCancelPending={() => void vm.cancelPendingSwitch()}
         />
         {vm.health?.metrics ? (
           <TelemetrySection metrics={vm.health.metrics} />
@@ -816,6 +817,7 @@ function OnlineSection({
           compact
           onSwitchMode={(m) => void vm.switchMode(m)}
           onStopStreaming={(m) => void vm.stopStreaming(m)}
+          onCancelPending={() => void vm.cancelPendingSwitch()}
         />
 
         <View style={styles.onlineGrid}>
@@ -862,6 +864,7 @@ function OnlineSection({
         compact
         onSwitchMode={(m) => void vm.switchMode(m)}
         onStopStreaming={(m) => void vm.stopStreaming(m)}
+        onCancelPending={() => void vm.cancelPendingSwitch()}
       />
 
       <View style={styles.onlineGrid}>

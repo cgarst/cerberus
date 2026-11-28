@@ -176,6 +176,10 @@ export class RoomAgentClient {
     await this.request<unknown>('POST', path, body, 25000);
   }
 
+  async cancelPendingSwitch(): Promise<void> {
+    await this.request<unknown>('POST', '/api/mode/cancel-pending', undefined, 5000);
+  }
+
   async stopStreaming(
     targetMode: string,
     consoleEnvironmentMode?: string

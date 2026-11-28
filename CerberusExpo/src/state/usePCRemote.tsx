@@ -100,6 +100,7 @@ interface PCRemoteContextValue {
   refreshNow: () => Promise<void>;
   refreshStatus: () => Promise<void>;
   switchMode: (mode: string) => Promise<void>;
+  cancelPendingSwitch: () => Promise<void>;
   switchWakeTarget: (mode: string) => void;
   cancelWake: () => void;
   wakeOnly: () => Promise<void>;
@@ -678,6 +679,13 @@ export function PCRemoteProvider({ children }: { children: React.ReactNode }) {
     },
     [fetchWindows, getConfig, refreshStatusInternal, startWakeAndSwitch]
   );
+
+  const cancelPendingSwitch = useCallback(async () => {
+    if (settingsRef.current.isDemoMode) return;
+    await performAction(() =>
+      new RoomAgentClient(getConfig()).cancelPendingSwitch()
+    );
+  }, [getConfig, performAction]);
 
   const switchWakeTarget = useCallback((mode: string) => {
     setWakeTargetMode(mode);
@@ -1289,6 +1297,7 @@ export function PCRemoteProvider({ children }: { children: React.ReactNode }) {
     refreshNow,
     refreshStatus,
     switchMode,
+    cancelPendingSwitch,
     switchWakeTarget,
     cancelWake,
     wakeOnly,

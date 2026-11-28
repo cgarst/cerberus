@@ -370,6 +370,8 @@ namespace RoomAgent
                     {
                         { "activeProfileId", _controller.ActiveProfileId },
                         { "defaultProfileId", defProfile != null ? defProfile.Id : "" },
+                        { "pendingProfileId", _controller.PendingProfileId ?? "" },
+                        { "pendingSwitchReason", _controller.PendingSwitchReason ?? "" },
                         { "profiles", items }
                     }, JsonOptions));
                     return;
@@ -495,6 +497,8 @@ namespace RoomAgent
                         { "activeProfileId", _controller.ActiveProfileId },
                         { "activeProfileName", activeProfile != null ? activeProfile.Name : _controller.ActiveProfileId },
                         { "defaultProfileId", defProfile != null ? defProfile.Id : "" },
+                        { "pendingProfileId", _controller.PendingProfileId ?? "" },
+                        { "pendingSwitchReason", _controller.PendingSwitchReason ?? "" },
                         { "profiles", profileSummaries },
                         { "streamingActive", streamingActive },
                         { "streamingDisplay", streamingActive ? (streaming.DisplayName ?? "") : "" },
@@ -607,10 +611,29 @@ namespace RoomAgent
                         consoleEnvironmentMode = GetString(reqBody, "consoleEnvironmentMode");
                     }
                     await _controller.SwitchToProfileAsync(profileId, true, consoleEnvironmentMode, "api").ConfigureAwait(false);
+                    bool isPending = !string.IsNullOrEmpty(_controller.PendingProfileId);
+                    string body = JsonSerializer.Serialize(new Dictionary<string, object>
+                    {
+                        { "status", isPending ? "pending" : "ok" },
+                        { "activeProfileId", _controller.ActiveProfileId },
+                        { "pendingProfileId", _controller.PendingProfileId ?? "" },
+                        { "pendingSwitchReason", _controller.PendingSwitchReason ?? "" },
+                        { "mode", _controller.CurrentMode == RoomMode.LivingRoom ? "living-room" : "office" },
+                        { "consoleEnvironmentMode", _controller.ActiveConsoleEnvironmentMode }
+                    }, JsonOptions);
+                    WriteJson(res, 200, body);
+                    return;
+                }
+
+                if (method == "POST" && path == "/api/mode/cancel-pending")
+                {
+                    _controller.CancelPendingSwitch();
                     string body = JsonSerializer.Serialize(new Dictionary<string, object>
                     {
                         { "status", "ok" },
                         { "activeProfileId", _controller.ActiveProfileId },
+                        { "pendingProfileId", "" },
+                        { "pendingSwitchReason", "" },
                         { "mode", _controller.CurrentMode == RoomMode.LivingRoom ? "living-room" : "office" },
                         { "consoleEnvironmentMode", _controller.ActiveConsoleEnvironmentMode }
                     }, JsonOptions);
@@ -639,10 +662,13 @@ namespace RoomAgent
                     {
                         await _controller.SwitchToProfileAsync(modeId, true, consoleEnvironmentMode, "api").ConfigureAwait(false);
                     }
+                    bool isPending = !string.IsNullOrEmpty(_controller.PendingProfileId);
                     string body = JsonSerializer.Serialize(new Dictionary<string, object>
                     {
-                        { "status", "ok" },
+                        { "status", isPending ? "pending" : "ok" },
                         { "activeProfileId", _controller.ActiveProfileId },
+                        { "pendingProfileId", _controller.PendingProfileId ?? "" },
+                        { "pendingSwitchReason", _controller.PendingSwitchReason ?? "" },
                         { "mode", _controller.CurrentMode == RoomMode.LivingRoom ? "living-room" : "office" },
                         { "consoleEnvironmentMode", _controller.ActiveConsoleEnvironmentMode }
                     }, JsonOptions);

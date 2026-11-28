@@ -19,6 +19,7 @@ interface RoomModeCardProps {
   compact?: boolean;
   onSwitchMode: (profileId: string) => void;
   onStopStreaming: (targetProfileId: string) => void;
+  onCancelPending?: () => void;
 }
 
 interface PrimaryActionButtonProps {
@@ -82,12 +83,24 @@ export function RoomModeCard({
   compact = false,
   onSwitchMode,
   onStopStreaming,
+  onCancelPending,
 }: RoomModeCardProps) {
   const defaultUnavailable = defaultProfile.available === false;
   const primaryTarget =
     nonDefaultProfiles.find((p) => p.available !== false) ??
     nonDefaultProfiles[0];
   const primaryUnavailable = primaryTarget?.available === false;
+  const pendingProfileId = health?.pendingProfileId?.trim() || '';
+  const pendingProfile = pendingProfileId
+    ? [defaultProfile, ...nonDefaultProfiles].find(
+        (p) => p.id.toLowerCase() === pendingProfileId.toLowerCase()
+      ) ?? { id: pendingProfileId, name: pendingProfileId }
+    : null;
+  const pendingLabel = pendingProfile
+    ? health?.pendingSwitchReason === 'waiting-for-display-ready'
+      ? `Waiting for ${pendingProfile.name} TV/HDR to come online...`
+      : `Waiting for ${pendingProfile.name} display to come online...`
+    : null;
 
   const soundLabel =
     health?.audioDevice?.trim() ||
@@ -147,6 +160,27 @@ export function RoomModeCard({
 
           {compact ? metaColumns : null}
         </View>
+        {pendingLabel ? (
+          <View style={styles.pendingBanner}>
+            <Text style={styles.pendingBannerText}>{pendingLabel}</Text>
+            {onCancelPending ? (
+              <SteamPressable
+                onPress={() => {
+                  triggerHaptic('light');
+                  onCancelPending();
+                }}
+                disabled={busy}
+                style={styles.cancelPendingBtn}
+              >
+                <Text style={styles.cancelPendingText}>Cancel</Text>
+              </SteamPressable>
+            ) : null}
+          </View>
+        ) : defaultUnavailable ? (
+          <Text style={styles.mobileHint}>
+            {`${defaultProfile.name} display is off — tap to switch when it turns on`}
+          </Text>
+        ) : null}
       </SteamSurface>
     );
   }
@@ -172,12 +206,8 @@ export function RoomModeCard({
             <PrimaryActionButton
               variant="blue"
               icon="close"
-              label={
-                defaultUnavailable
-                  ? `${defaultProfile.name.toUpperCase()} UNAVAILABLE`
-                  : `EXIT ${activeProfile.name.toUpperCase()}`
-              }
-              disabled={busy || defaultUnavailable}
+              label={`EXIT ${activeProfile.name.toUpperCase()}`}
+              disabled={busy}
               onPress={() => {
                 triggerHaptic('medium');
                 onSwitchMode(defaultProfile.id);
@@ -186,7 +216,6 @@ export function RoomModeCard({
             />
 
             {otherRooms.map((profile) => {
-              const unavailable = profile.available === false;
               return (
                 <SteamPressable
                   key={profile.id}
@@ -194,10 +223,10 @@ export function RoomModeCard({
                     triggerHaptic('light');
                     onSwitchMode(profile.id);
                   }}
-                  disabled={busy || unavailable}
+                  disabled={busy}
                   style={[
                     styles.secondaryBtn,
-                    (busy || unavailable) && styles.disabled,
+                    busy && styles.disabled,
                   ]}
                 >
                   <Ionicons
@@ -215,6 +244,27 @@ export function RoomModeCard({
 
           {compact ? metaColumns : null}
         </View>
+        {pendingLabel ? (
+          <View style={styles.pendingBanner}>
+            <Text style={styles.pendingBannerText}>{pendingLabel}</Text>
+            {onCancelPending ? (
+              <SteamPressable
+                onPress={() => {
+                  triggerHaptic('light');
+                  onCancelPending();
+                }}
+                disabled={busy}
+                style={styles.cancelPendingBtn}
+              >
+                <Text style={styles.cancelPendingText}>Cancel</Text>
+              </SteamPressable>
+            ) : null}
+          </View>
+        ) : defaultUnavailable ? (
+          <Text style={styles.mobileHint}>
+            {`${defaultProfile.name} display is off — tap to switch when it turns on`}
+          </Text>
+        ) : null}
       </SteamSurface>
     );
   }
@@ -249,12 +299,8 @@ export function RoomModeCard({
           <PrimaryActionButton
             variant="green"
             icon="play"
-            label={
-              primaryUnavailable
-                ? `${primaryTarget.name.toUpperCase()} UNAVAILABLE`
-                : `SWITCH TO ${primaryTarget.name.toUpperCase()}`
-            }
-            disabled={busy || primaryUnavailable}
+            label={`SWITCH TO ${primaryTarget.name.toUpperCase()}`}
+            disabled={busy}
             onPress={() => {
               triggerHaptic('medium');
               onSwitchMode(primaryTarget.id);
@@ -263,7 +309,6 @@ export function RoomModeCard({
           />
 
           {extraTargets.map((profile) => {
-            const unavailable = profile.available === false;
             return (
               <SteamPressable
                 key={profile.id}
@@ -271,10 +316,10 @@ export function RoomModeCard({
                   triggerHaptic('medium');
                   onSwitchMode(profile.id);
                 }}
-                disabled={busy || unavailable}
+                disabled={busy}
                 style={[
                   styles.secondaryBtn,
-                  (busy || unavailable) && styles.disabled,
+                  busy && styles.disabled,
                 ]}
               >
                 <Ionicons name="play" size={12} color={Colors.text} />
@@ -288,12 +333,45 @@ export function RoomModeCard({
 
         {compact ? (
           metaColumns
+        ) : pendingLabel ? (
+          <View style={styles.pendingBanner}>
+            <Text style={styles.pendingBannerText}>{pendingLabel}</Text>
+            {onCancelPending ? (
+              <SteamPressable
+                onPress={() => {
+                  triggerHaptic('light');
+                  onCancelPending();
+                }}
+                disabled={busy}
+                style={styles.cancelPendingBtn}
+              >
+                <Text style={styles.cancelPendingText}>Cancel</Text>
+              </SteamPressable>
+            ) : null}
+          </View>
         ) : primaryUnavailable ? (
           <Text style={styles.mobileHint}>
-            {`${primaryTarget.name} display is currently unavailable`}
+            {`${primaryTarget.name} display is off — tap to switch when it turns on`}
           </Text>
         ) : null}
       </View>
+      {compact && pendingLabel ? (
+        <View style={[styles.pendingBanner, styles.pendingBannerCompact]}>
+          <Text style={styles.pendingBannerText}>{pendingLabel}</Text>
+          {onCancelPending ? (
+            <SteamPressable
+              onPress={() => {
+                triggerHaptic('light');
+                onCancelPending();
+              }}
+              disabled={busy}
+              style={styles.cancelPendingBtn}
+            >
+              <Text style={styles.cancelPendingText}>Cancel</Text>
+            </SteamPressable>
+          ) : null}
+        </View>
+      ) : null}
     </SteamSurface>
   );
 }
@@ -375,6 +453,42 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.textSecondary,
     textAlign: 'center',
+  },
+  pendingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginHorizontal: 12,
+    marginBottom: 10,
+    borderRadius: Radii.sm,
+    backgroundColor: 'rgba(26, 159, 255, 0.14)',
+    borderWidth: 1,
+    borderColor: Colors.steamBlueBorder,
+  },
+  pendingBannerCompact: {
+    marginTop: -2,
+  },
+  pendingBannerText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  cancelPendingBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: Radii.sm,
+    backgroundColor: Colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: Colors.borderStrong,
+  },
+  cancelPendingText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.text,
   },
   metaRow: {
     flexDirection: 'row',

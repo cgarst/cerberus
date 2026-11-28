@@ -21,6 +21,7 @@ namespace RoomAgent
         private readonly ILogger _logger;
         private readonly SemaphoreSlim _gate = new SemaphoreSlim(1, 1);
         private readonly object _wakeLock = new object();
+        private readonly object _pendingLock = new object();
 
         private string _activeProfileId;
         private string _activeConsoleEnvironmentMode;
@@ -28,6 +29,12 @@ namespace RoomAgent
         private bool _streamingConsoleOverrideActive;
         private string _preStreamingConsoleEnvironmentMode;
         private CancellationTokenSource _wakeGuardCts;
+        private CancellationTokenSource _pendingSwitchCts;
+        private string _pendingProfileId;
+        private string _pendingConsoleEnvironmentMode;
+        private string _pendingReason;
+
+        public int PendingSwitchPollIntervalMs { get; set; } = 1500;
 
         public RoomController(AgentConfig config, ISystemActions actions, IIdleMonitor idleMonitor, ILogger logger)
             : this(config, actions, idleMonitor, null, null, logger)
@@ -65,6 +72,16 @@ namespace RoomAgent
         public string ActiveProfileId
         {
             get { return _activeProfileId; }
+        }
+
+        public string PendingProfileId
+        {
+            get { lock (_pendingLock) { return _pendingProfileId; } }
+        }
+
+        public string PendingSwitchReason
+        {
+            get { lock (_pendingLock) { return _pendingReason; } }
         }
 
         public EnvironmentConfig ActiveProfile
@@ -346,6 +363,7 @@ namespace RoomAgent
             }
 
             string targetMode = AgentConfig.NormalizeConsoleEnvironmentMode(consoleEnvironmentMode);
+            CancelPendingSwitch();
 
             await _gate.WaitAsync().ConfigureAwait(false);
             try
@@ -405,6 +423,19 @@ namespace RoomAgent
             }
 
             CancelWakeGuard();
+            bool isPendingRetry = string.Equals(reason, "pending-ready", StringComparison.OrdinalIgnoreCase);
+            if (!isPendingRetry)
+            {
+                CancelPendingSwitch();
+            }
+
+            bool allowPendingWait =
+                !string.Equals(reason, "power-suspend", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(reason, "session-ending", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(reason, "api-sleep", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(reason, "api-shutdown", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(reason, "idle-timeout", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(reason, "wake-guard-timeout", StringComparison.OrdinalIgnoreCase);
 
             await _gate.WaitAsync().ConfigureAwait(false);
             try
@@ -444,6 +475,11 @@ namespace RoomAgent
 
                 if (!IsProfileMonitorAvailable(targetProfile))
                 {
+                    if (allowPendingWait)
+                    {
+                        ArmPendingSwitch(targetProfile, targetConsoleMode, "waiting-for-display", fromApi);
+                        return;
+                    }
                     throw new InvalidOperationException("Target monitor \"" + targetProfile.Monitor + "\" is not available.");
                 }
 
@@ -479,6 +515,13 @@ namespace RoomAgent
 
                 if (switchError != null)
                 {
+                    if (allowPendingWait && IsMonitorActiveInTopology(targetProfile))
+                    {
+                        _logger.Info(targetProfile.Name + " display is active in topology, but not ready yet (" + switchError.Message + "); waiting for display to come online.");
+                        ArmPendingSwitch(targetProfile, targetConsoleMode, "waiting-for-display-ready", fromApi);
+                        return;
+                    }
+
                     EnvironmentConfig fallbackProfile = _config.GetDefaultProfile();
                     if (fallbackProfile != null && !string.Equals(fallbackProfile.Id, targetProfile.Id, StringComparison.OrdinalIgnoreCase))
                     {
@@ -488,6 +531,8 @@ namespace RoomAgent
                     }
                     throw switchError;
                 }
+
+                ClearPendingSwitchIfMatches(targetProfile.Id);
 
                 if (isDefaultTarget)
                 {
@@ -599,6 +644,7 @@ namespace RoomAgent
         public void OnPowerSuspend()
         {
             CancelWakeGuard();
+            CancelPendingSwitch();
             if (!IsDefaultProfile(_activeProfileId))
             {
                 _logger.Info("Power suspend detected while in " + _activeProfileId + " profile; reverting to default profile.");
@@ -616,6 +662,7 @@ namespace RoomAgent
         public void OnSessionEnding(string reason)
         {
             CancelWakeGuard();
+            CancelPendingSwitch();
             if (!IsDefaultProfile(_activeProfileId))
             {
                 _logger.Info("Session ending (" + (reason ?? "unknown") + ") while in " + _activeProfileId + " profile; reverting to default profile.");
@@ -1054,6 +1101,195 @@ namespace RoomAgent
             }
         }
 
+        private bool IsMonitorActiveInTopology(EnvironmentConfig profile)
+        {
+            if (profile == null || string.IsNullOrWhiteSpace(profile.Monitor))
+            {
+                return true;
+            }
+            string details;
+            if (_actions.VerifyOutputDevices(profile, false, out details))
+            {
+                return true;
+            }
+            if (string.IsNullOrEmpty(details))
+            {
+                return false;
+            }
+            int start = details.IndexOf("monitors=[", StringComparison.OrdinalIgnoreCase);
+            if (start < 0)
+            {
+                return false;
+            }
+            start += "monitors=[".Length;
+            int end = details.IndexOf("]", start, StringComparison.Ordinal);
+            if (end < 0)
+            {
+                return false;
+            }
+            string activeMonitors = details.Substring(start, end - start);
+            return !string.Equals(activeMonitors, "(none)", StringComparison.OrdinalIgnoreCase) &&
+                   activeMonitors.IndexOf(profile.Monitor, StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private void ArmPendingSwitch(EnvironmentConfig targetProfile, string targetConsoleMode, string pendingReason, bool fromApi)
+        {
+            CancellationTokenSource cts = new CancellationTokenSource();
+            lock (_pendingLock)
+            {
+                if (_pendingSwitchCts != null)
+                {
+                    _pendingSwitchCts.Cancel();
+                    _pendingSwitchCts.Dispose();
+                }
+                _pendingSwitchCts = cts;
+                _pendingProfileId = targetProfile.Id;
+                _pendingConsoleEnvironmentMode = targetConsoleMode;
+                _pendingReason = pendingReason;
+            }
+
+            _logger.Info(string.Format("Armed pending switch to {0} (reason={1}, consoleEnvironment={2}); waiting for display to come online.",
+                targetProfile.Name, pendingReason, targetConsoleMode ?? ""));
+
+            Task.Run(async () =>
+            {
+                try
+                {
+                    while (!cts.Token.IsCancellationRequested)
+                    {
+                        int pollMs = Math.Max(10, PendingSwitchPollIntervalMs);
+                        await Task.Delay(pollMs, cts.Token).ConfigureAwait(false);
+                        if (cts.Token.IsCancellationRequested)
+                        {
+                            break;
+                        }
+
+                        EnvironmentConfig latestProfile = _config.GetProfile(targetProfile.Id);
+                        if (latestProfile == null)
+                        {
+                            ClearPendingSwitchIfCts(cts);
+                            return;
+                        }
+
+                        bool ready = false;
+                        if (string.Equals(pendingReason, "waiting-for-display", StringComparison.OrdinalIgnoreCase))
+                        {
+                            ready = IsProfileMonitorAvailable(latestProfile);
+                        }
+                        else
+                        {
+                            string unused;
+                            if (_actions.VerifyOutputDevices(latestProfile, true, out unused))
+                            {
+                                ready = true;
+                            }
+                            else
+                            {
+                                if (!_actions.VerifyOutputDevices(latestProfile, false, out unused))
+                                {
+                                    _actions.SwitchDisplay(latestProfile);
+                                }
+                                string matchedAudio;
+                                if (!string.IsNullOrWhiteSpace(latestProfile.Audio))
+                                {
+                                    _actions.TrySetDefaultAudioPlaybackDevice(latestProfile.Audio, out matchedAudio);
+                                }
+                                ready = _actions.VerifyOutputDevices(latestProfile, true, out unused);
+                            }
+                        }
+
+                        if (!ready)
+                        {
+                            continue;
+                        }
+
+                        _logger.Info("Target display for " + latestProfile.Name + " is now ready; executing pending switch...");
+                        await SwitchToProfileAsync(latestProfile.Id, fromApi, targetConsoleMode, "pending-ready").ConfigureAwait(false);
+
+                        string stillPending;
+                        lock (_pendingLock)
+                        {
+                            stillPending = _pendingSwitchCts == cts ? _pendingProfileId : null;
+                        }
+                        if (string.IsNullOrEmpty(stillPending))
+                        {
+                            return;
+                        }
+                    }
+                }
+                catch (TaskCanceledException)
+                {
+                }
+                catch (Exception ex)
+                {
+                    _logger.Error("Pending switch watcher error for " + targetProfile.Id, ex);
+                    ClearPendingSwitchIfCts(cts);
+                }
+            });
+        }
+
+        private void ClearPendingSwitchIfCts(CancellationTokenSource cts)
+        {
+            lock (_pendingLock)
+            {
+                if (_pendingSwitchCts == cts)
+                {
+                    _pendingSwitchCts.Dispose();
+                    _pendingSwitchCts = null;
+                    _pendingProfileId = null;
+                    _pendingConsoleEnvironmentMode = null;
+                    _pendingReason = null;
+                }
+            }
+        }
+
+        private void ClearPendingSwitchIfMatches(string profileId)
+        {
+            lock (_pendingLock)
+            {
+                if (!string.IsNullOrEmpty(_pendingProfileId) &&
+                    string.Equals(_pendingProfileId, profileId, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (_pendingSwitchCts != null)
+                    {
+                        _pendingSwitchCts.Cancel();
+                        _pendingSwitchCts.Dispose();
+                        _pendingSwitchCts = null;
+                    }
+                    _pendingProfileId = null;
+                    _pendingConsoleEnvironmentMode = null;
+                    _pendingReason = null;
+                }
+            }
+        }
+
+        public void CancelPendingSwitch()
+        {
+            bool hadPending = false;
+            string prevProfile = null;
+            lock (_pendingLock)
+            {
+                if (_pendingSwitchCts != null || !string.IsNullOrEmpty(_pendingProfileId))
+                {
+                    hadPending = true;
+                    prevProfile = _pendingProfileId;
+                }
+                if (_pendingSwitchCts != null)
+                {
+                    _pendingSwitchCts.Cancel();
+                    _pendingSwitchCts.Dispose();
+                    _pendingSwitchCts = null;
+                }
+                _pendingProfileId = null;
+                _pendingConsoleEnvironmentMode = null;
+                _pendingReason = null;
+            }
+            if (hadPending)
+            {
+                _logger.Info("Cancelled pending switch to " + (prevProfile ?? "unknown") + ".");
+            }
+        }
+
         private void CancelWakeGuard()
         {
             lock (_wakeLock)
@@ -1070,6 +1306,7 @@ namespace RoomAgent
         public void Dispose()
         {
             CancelWakeGuard();
+            CancelPendingSwitch();
             _gate.Dispose();
         }
     }

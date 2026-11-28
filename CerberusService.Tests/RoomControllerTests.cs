@@ -242,6 +242,9 @@ namespace RoomAgent.Tests
             Run("ConsoleEnvironmentMovesCursorToLowerRightCorner", TestConsoleEnvironmentMovesCursorToLowerRightCorner);
             Run("RemoteInputProcessorParsesAndClampsPayloads", TestRemoteInputProcessorParsesAndClampsPayloads);
             Run("OsdModeMutuallyExclusiveTransitions", TestOsdModeMutuallyExclusiveTransitions);
+            Run("PendingSwitchExecutesWhenMonitorBecomesAvailable", TestPendingSwitchExecutesWhenMonitorBecomesAvailable);
+            Run("PendingDisplayReadyWaitsForHdrAndCompletes", TestPendingDisplayReadyWaitsForHdrAndCompletes);
+            Run("CancelPendingSwitchStopsWaiting", TestCancelPendingSwitchStopsWaiting);
 
             Console.WriteLine(string.Format("Tests complete: {0} passed, {1} failed", _passed, _failed));
             return _failed == 0 ? 0 : 1;
@@ -504,19 +507,12 @@ namespace RoomAgent.Tests
             FakeIdleMonitor idle = new FakeIdleMonitor();
             using (RoomController ctrl = new RoomController(cfg, actions, idle, new FakeLogger()))
             {
-                bool threw = false;
-                try
-                {
-                    ctrl.SwitchToLivingRoomAsync(true).GetAwaiter().GetResult();
-                }
-                catch (InvalidOperationException)
-                {
-                    threw = true;
-                }
+                ctrl.SwitchToLivingRoomAsync(true).GetAwaiter().GetResult();
 
-                Assert(threw, "Expected pre-flight check to throw when monitor is unavailable");
-                Assert(actions.Calls.Count == 0, "Expected no windows minimized or display switched before pre-flight check");
-                Assert(ctrl.CurrentMode == RoomMode.Office, "Expected mode to remain Office");
+                Assert(ctrl.PendingProfileId == "living-room", "Expected pending profile to be living-room");
+                Assert(ctrl.PendingSwitchReason == "waiting-for-display", "Expected waiting-for-display reason");
+                Assert(actions.Calls.Count == 0, "Expected no windows minimized or display switched while waiting");
+                Assert(ctrl.CurrentMode == RoomMode.Office, "Expected mode to remain Office while waiting");
             }
         }
 
@@ -654,18 +650,10 @@ namespace RoomAgent.Tests
 
             using (RoomController ctrl = new RoomController(cfg, actions, idle, new FakeLogger()))
             {
-                bool threw = false;
-                try
-                {
-                    ctrl.SwitchToLivingRoomAsync(true).GetAwaiter().GetResult();
-                }
-                catch (InvalidOperationException)
-                {
-                    threw = true;
-                }
+                ctrl.SwitchToLivingRoomAsync(true).GetAwaiter().GetResult();
 
-                Assert(threw, "Expected unavailable monitor to throw");
-                Assert(actions.Calls.Count == 0, "Expected no apps closed when monitor is unavailable");
+                Assert(ctrl.PendingProfileId == "living-room", "Expected pending living-room switch");
+                Assert(actions.Calls.Count == 0, "Expected no apps closed while monitor is unavailable");
             }
         }
 
@@ -795,7 +783,11 @@ namespace RoomAgent.Tests
             cfg.VerifyRetryCount = 0;
             cfg.Office.HueSync = true;
             cfg.LivingRoom.HueSync = false;
-            FakeSystemActions actions = new FakeSystemActions { VerifyResult = false };
+            FakeSystemActions actions = new FakeSystemActions
+            {
+                VerifyResult = false,
+                VerifyMonitorOnlyResult = false
+            };
             FakeIdleMonitor idle = new FakeIdleMonitor();
 
             using (RoomController ctrl = new RoomController(cfg, actions, idle, new FakeLogger()))
@@ -845,7 +837,11 @@ namespace RoomAgent.Tests
         {
             AgentConfig cfg = CreateTestConfig();
             cfg.Office.HueSync = true;
-            FakeSystemActions actions = new FakeSystemActions { VerifyResult = false };
+            FakeSystemActions actions = new FakeSystemActions
+            {
+                VerifyResult = false,
+                VerifyMonitorOnlyResult = false
+            };
             FakeIdleMonitor idle = new FakeIdleMonitor();
 
             using (RoomController ctrl = new RoomController(cfg, actions, idle, new FakeLogger()))
@@ -2338,6 +2334,84 @@ namespace RoomAgent.Tests
 
                 Assert(ctrl.TrySetOsdMode("off", out mode, out enabled), "Expected switching to off to succeed");
                 Assert(mode == "off" && !enabled, "Expected osd disabled when off");
+            }
+        }
+
+        private static void TestPendingSwitchExecutesWhenMonitorBecomesAvailable()
+        {
+            AgentConfig cfg = CreateTestConfig();
+            FakeSystemActions actions = new FakeSystemActions { MonitorAvailableResult = false };
+            FakeIdleMonitor idle = new FakeIdleMonitor();
+            using (RoomController ctrl = new RoomController(cfg, actions, idle, new FakeLogger()))
+            {
+                ctrl.PendingSwitchPollIntervalMs = 20;
+                ctrl.SwitchToLivingRoomAsync(true).GetAwaiter().GetResult();
+
+                Assert(ctrl.CurrentMode == RoomMode.Office, "Expected Office while monitor is offline");
+                Assert(ctrl.PendingProfileId == "living-room", "Expected pending living-room");
+
+                actions.MonitorAvailableResult = true;
+                DateTime deadline = DateTime.UtcNow.AddSeconds(3);
+                while (ctrl.CurrentMode != RoomMode.LivingRoom && DateTime.UtcNow < deadline)
+                {
+                    Thread.Sleep(25);
+                }
+
+                Assert(ctrl.CurrentMode == RoomMode.LivingRoom, "Expected automatic switch to LivingRoom once monitor came online");
+                Assert(string.IsNullOrEmpty(ctrl.PendingProfileId), "Expected PendingProfileId to clear after completion");
+            }
+        }
+
+        private static void TestPendingDisplayReadyWaitsForHdrAndCompletes()
+        {
+            AgentConfig cfg = CreateTestConfig();
+            cfg.VerifyRetryCount = 0;
+            FakeSystemActions actions = new FakeSystemActions
+            {
+                MonitorAvailableResult = true,
+                VerifyMonitorOnlyResult = true,
+                VerifyResult = false
+            };
+            FakeIdleMonitor idle = new FakeIdleMonitor();
+            using (RoomController ctrl = new RoomController(cfg, actions, idle, new FakeLogger()))
+            {
+                ctrl.PendingSwitchPollIntervalMs = 20;
+                ctrl.SwitchToLivingRoomAsync(true).GetAwaiter().GetResult();
+
+                Assert(ctrl.CurrentMode == RoomMode.Office, "Expected Office until HDR/audio validation passes");
+                Assert(ctrl.PendingProfileId == "living-room", "Expected pending living-room");
+                Assert(ctrl.PendingSwitchReason == "waiting-for-display-ready", "Expected waiting-for-display-ready reason");
+                Assert(!actions.Calls.Contains("display:Odyssey G80SD@3840x2160:240:hdr=True"), "Expected no revert to Office display while waiting for TV HDR");
+
+                actions.VerifyResult = true;
+                DateTime deadline = DateTime.UtcNow.AddSeconds(3);
+                while (ctrl.CurrentMode != RoomMode.LivingRoom && DateTime.UtcNow < deadline)
+                {
+                    Thread.Sleep(25);
+                }
+
+                Assert(ctrl.CurrentMode == RoomMode.LivingRoom, "Expected LivingRoom once TV HDR/audio became ready");
+                Assert(string.IsNullOrEmpty(ctrl.PendingProfileId), "Expected PendingProfileId to clear");
+            }
+        }
+
+        private static void TestCancelPendingSwitchStopsWaiting()
+        {
+            AgentConfig cfg = CreateTestConfig();
+            FakeSystemActions actions = new FakeSystemActions { MonitorAvailableResult = false };
+            FakeIdleMonitor idle = new FakeIdleMonitor();
+            using (RoomController ctrl = new RoomController(cfg, actions, idle, new FakeLogger()))
+            {
+                ctrl.PendingSwitchPollIntervalMs = 20;
+                ctrl.SwitchToLivingRoomAsync(true).GetAwaiter().GetResult();
+                Assert(ctrl.PendingProfileId == "living-room", "Expected pending living-room");
+
+                ctrl.CancelPendingSwitch();
+                Assert(string.IsNullOrEmpty(ctrl.PendingProfileId), "Expected pending switch to be cleared");
+
+                actions.MonitorAvailableResult = true;
+                Thread.Sleep(120);
+                Assert(ctrl.CurrentMode == RoomMode.Office, "Expected cancelled pending switch not to execute");
             }
         }
     }

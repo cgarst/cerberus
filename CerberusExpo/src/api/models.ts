@@ -70,6 +70,8 @@ export interface HealthResponse {
   activeProfileId?: string | null;
   activeProfileName?: string | null;
   defaultProfileId?: string | null;
+  pendingProfileId?: string | null;
+  pendingSwitchReason?: string | null;
   profiles?: ProfileSummary[] | null;
   streamingActive?: boolean | null;
   streamingDisplay?: string | null;
