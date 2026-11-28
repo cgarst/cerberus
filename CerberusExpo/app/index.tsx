@@ -375,7 +375,6 @@ export default function HomeScreen() {
           <OfflineSection
             pcHost={vm.pcHost}
             pcPort={vm.pcPort}
-            pcMac={vm.pcMac}
             busy={vm.busy}
             onWakeLivingRoom={() => void vm.switchMode('living-room')}
             onWakeOffice={() => void vm.switchMode('office')}
@@ -390,14 +389,12 @@ export default function HomeScreen() {
 function OfflineSection({
   pcHost,
   pcPort,
-  pcMac,
   busy,
   onWakeLivingRoom,
   onWakeOffice,
 }: {
   pcHost: string;
   pcPort: number;
-  pcMac: string;
   busy: boolean;
   onWakeLivingRoom: () => void;
   onWakeOffice: () => void;
@@ -424,7 +421,7 @@ function OfflineSection({
           </View>
         </SteamSurface>
         <Text style={styles.targetCaption}>
-          TARGET: {pcHost}:{pcPort}
+          {pcHost}:{pcPort}
         </Text>
       </View>
     );
@@ -466,7 +463,7 @@ function OfflineSection({
       </SteamSurface>
 
       <Text style={styles.targetCaption}>
-        TARGET: {pcHost}:{pcPort} · MAC {pcMac}
+        {pcHost}:{pcPort}
       </Text>
     </View>
   );
