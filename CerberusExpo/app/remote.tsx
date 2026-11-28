@@ -384,16 +384,6 @@ export default function RemoteInputScreen() {
           <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
           <Text style={styles.statusText}>{statusLabel}</Text>
         </View>
-        {Platform.OS === 'web' && (
-          <SteamPressable
-            onPress={cycleSensitivity}
-            style={styles.sensitivityPill}
-          >
-            <Text style={styles.sensitivityText}>
-              Speed: {SENSITIVITY_LABELS[sensitivity]}
-            </Text>
-          </SteamPressable>
-        )}
       </View>
 
       {/* Trackpad surface */}
@@ -563,6 +553,7 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
   sensitivityPill: {
+    marginRight: 14,
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: Radii.pill,
