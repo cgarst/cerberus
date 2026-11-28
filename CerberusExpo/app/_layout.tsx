@@ -63,6 +63,13 @@ export default function RootLayout() {
             options={{
               title: 'SETTINGS',
               presentation: 'modal',
+              ...(Platform.OS === 'ios'
+                ? {
+                    headerStyle: { backgroundColor: '#1c1c1e' },
+                    headerBlurEffect: undefined,
+                    contentStyle: { backgroundColor: '#1c1c1e' },
+                  }
+                : null),
             }}
           />
         </Stack>
