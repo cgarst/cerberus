@@ -46,7 +46,7 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDi
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Parameters: "--configure --autostart --config ""{commonappdata}\{#MyAppName}\config.json"""; Flags: runhidden waituntilterminated; Tasks: autostart; StatusMsg: "Configuring firewall, URL ACL, and startup task..."
 Filename: "{app}\{#MyAppExeName}"; Parameters: "--configure --config ""{commonappdata}\{#MyAppName}\config.json"""; Flags: runhidden waituntilterminated; Tasks: not autostart; StatusMsg: "Configuring firewall and URL ACL..."
-Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; WorkingDir: "{commonappdata}\{#MyAppName}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; WorkingDir: "{commonappdata}\{#MyAppName}"; Flags: nowait postinstall skipifsilent runascurrentuser
 Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{commonappdata}\{#MyAppName}"; Flags: nowait; Check: ShouldRelaunchAfterSilentUpdate
 
 [UninstallRun]
