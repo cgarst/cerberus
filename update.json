@@ -1,15 +1,15 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-28T16:33:56.580Z",
+  "generatedAt": "2026-11-28T17:35:07.145Z",
   "channels": {
     "alpha": {
-      "version": "1.0.0-alpha.20261128-8274c85",
-      "url": "https://github.com/cgarst/cerberus/releases/download/alpha/CerberusServiceSetup-1.0.0-alpha.20261128-8274c85-win-x64.exe",
-      "sha256": "d17d72500f21503d4cca85d87000543ec61967678823bb9aaa91255ecbc7612d",
-      "size": 5076450,
-      "publishedAt": "2026-11-28T16:33:46Z",
+      "version": "1.0.0-alpha.20261128-0fbb184",
+      "url": "https://github.com/cgarst/cerberus/releases/download/alpha/CerberusServiceSetup-1.0.0-alpha.20261128-0fbb184-win-x64.exe",
+      "sha256": "edeb0ddd6b234dd5a530e914cb0f5a340b7c454db0848148ad3e311a2971267b",
+      "size": 5083010,
+      "publishedAt": "2026-11-28T17:34:57Z",
       "releaseUrl": "https://github.com/cgarst/cerberus/releases/tag/alpha",
-      "notes": "Automated alpha build of `8274c85dd7225a2cb8ede97d71eeae63a3bcb65f`.\n\n- Version: `1.0.0-alpha.20261128-8274c85`\n- Channel: `alpha`"
+      "notes": "Automated alpha build of `0fbb18496a3b0ac4ca399f2f90cca910bd7e813b`.\n\n- Version: `1.0.0-alpha.20261128-0fbb184`\n- Channel: `alpha`"
     }
   }
 }
