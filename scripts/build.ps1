@@ -1,6 +1,7 @@
 param(
     [switch]$SkipChecks,
-    [switch]$SkipWebExport
+    [switch]$SkipWebExport,
+    [string]$Version = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -58,14 +59,20 @@ if (-not $SkipWebExport -and (Test-Path $ExpoDir)) {
 $AgentProj = Join-Path $Root "CerberusService\CerberusService.csproj"
 $AgentExe = Join-Path $BuildDir "CerberusService.exe"
 Write-Host "Publishing $AgentExe ..."
-& $Dotnet publish $AgentProj `
-    -c Release `
-    -r win-x64 `
-    --no-self-contained `
-    -p:PublishSingleFile=true `
-    -p:DebugType=none `
-    -o $BuildDir `
-    --nologo
+$PublishArgs = @(
+    "publish", $AgentProj,
+    "-c", "Release",
+    "-r", "win-x64",
+    "--no-self-contained",
+    "-p:PublishSingleFile=true",
+    "-p:DebugType=none",
+    "-o", $BuildDir,
+    "--nologo"
+)
+if (-not [string]::IsNullOrWhiteSpace($Version)) {
+    $PublishArgs += "-p:Version=$Version"
+}
+& $Dotnet @PublishArgs
 
 if ($LASTEXITCODE -ne 0) {
     throw "CerberusService build failed with exit code $LASTEXITCODE"

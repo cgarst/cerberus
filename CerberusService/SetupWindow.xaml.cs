@@ -24,6 +24,7 @@ namespace RoomAgent
         private readonly RoomController _controller;
         private readonly ILogger _logger;
         private readonly string _demoDnsUrl;
+        private readonly UpdateService _updateService;
 
         private AgentConfig _workingConfig;
         private List<NativeInterop.DisplayDeviceInfo> _displays = new List<NativeInterop.DisplayDeviceInfo>();
@@ -48,7 +49,7 @@ namespace RoomAgent
             }
         }
 
-        public SetupWindow(AgentConfig config, RoomController controller, ILogger logger, string demoDnsUrl = null)
+        public SetupWindow(AgentConfig config, RoomController controller, ILogger logger, string demoDnsUrl = null, UpdateService updateService = null)
         {
             if (config == null) throw new ArgumentNullException("config");
             if (controller == null) throw new ArgumentNullException("controller");
@@ -57,12 +58,18 @@ namespace RoomAgent
             _controller = controller;
             _logger = logger;
             _demoDnsUrl = demoDnsUrl;
+            _updateService = updateService;
 
             InitializeComponent();
             Icon = TrayIconHost.CreateWindowIcon();
             double maxInitialHeight = Math.Max(MinHeight, SystemParameters.WorkArea.Height - 24);
             MaxHeight = maxInitialHeight;
             Loaded += SetupWindow_Loaded;
+            Closed += SetupWindow_Closed;
+            if (_updateService != null)
+            {
+                _updateService.StateChanged += UpdateService_StateChanged;
+            }
             PopulateStaticCombos();
             ReloadFromLive();
         }
@@ -108,6 +115,12 @@ namespace RoomAgent
             SteamCloseModeCombo.Items.Add(new ComboItem("exit-bigpicture", "Exit Big Picture"));
             SteamCloseModeCombo.Items.Add(new ComboItem("close-window", "Close Steam Window"));
             SteamCloseModeCombo.Items.Add(new ComboItem("none", "Do Nothing"));
+
+            UpdateChannelCombo.Items.Add(new ComboItem("auto", "Auto (Match Installed Build)"));
+            UpdateChannelCombo.Items.Add(new ComboItem("stable", "Stable"));
+            UpdateChannelCombo.Items.Add(new ComboItem("beta", "Beta"));
+            UpdateChannelCombo.Items.Add(new ComboItem("alpha", "Alpha"));
+            UpdateChannelCombo.Items.Add(new ComboItem("off", "Off (Disabled)"));
         }
 
         internal void ReloadFromLive()
@@ -172,6 +185,9 @@ namespace RoomAgent
                 SteamPathBox.Text = _workingConfig.SteamPath ?? "";
                 SelectComboValue(SteamCloseModeCombo, _workingConfig.SteamCloseMode ?? "exit-bigpicture");
                 ShortcutsDirectoryBox.Text = _workingConfig.ShortcutsDirectory ?? "";
+                SelectComboValue(UpdateChannelCombo, _workingConfig.UpdateChannel ?? "auto");
+                CheckUpdatesOnStartupChk.IsChecked = _workingConfig.CheckForUpdatesOnStartup;
+                UpdateVersionAndStatusDisplay(_updateService != null ? _updateService.GetSnapshot() : null);
                 IdleSleepChk.IsChecked = _workingConfig.IdleSleepAfterRevert;
                 RunIntegrationsOnConsoleEnvironmentChk.IsChecked = _workingConfig.RunIntegrationsOnConsoleEnvironmentSwitch;
                 SelectComboValue(StreamingConsoleEnvironmentCombo, _workingConfig.StreamingConsoleEnvironmentMode ?? "");
@@ -1556,6 +1572,8 @@ namespace RoomAgent
                 _workingConfig.SteamPath = SteamPathBox.Text.Trim();
                 _workingConfig.SteamCloseMode = GetSelectedComboValue(SteamCloseModeCombo);
                 _workingConfig.ShortcutsDirectory = ShortcutsDirectoryBox.Text.Trim();
+                _workingConfig.UpdateChannel = GetSelectedComboValue(UpdateChannelCombo) ?? "auto";
+                _workingConfig.CheckForUpdatesOnStartup = CheckUpdatesOnStartupChk.IsChecked == true;
                 _workingConfig.IdleSleepAfterRevert = IdleSleepChk.IsChecked == true;
                 _workingConfig.RunIntegrationsOnConsoleEnvironmentSwitch = RunIntegrationsOnConsoleEnvironmentChk.IsChecked == true;
                 _workingConfig.StreamingConsoleEnvironmentMode = GetSelectedComboValue(StreamingConsoleEnvironmentCombo) ?? "";
@@ -1585,6 +1603,111 @@ namespace RoomAgent
             {
                 SaveBtn.IsEnabled = true;
             }
+        }
+
+        private void SetupWindow_Closed(object sender, EventArgs e)
+        {
+            if (_updateService != null)
+            {
+                _updateService.StateChanged -= UpdateService_StateChanged;
+            }
+        }
+
+        private void UpdateService_StateChanged(object sender, UpdateStateSnapshot snapshot)
+        {
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                UpdateVersionAndStatusDisplay(snapshot);
+            }));
+        }
+
+        private void UpdateVersionAndStatusDisplay(UpdateStateSnapshot snapshot)
+        {
+            if (InstalledVersionText == null || UpdateStatusText == null || UpdateActionBtn == null) return;
+
+            string currentVersion = snapshot != null ? snapshot.CurrentVersion : UpdateService.GetCurrentVersion();
+            InstalledVersionText.Text = currentVersion;
+
+            if (_updateService == null || snapshot == null)
+            {
+                UpdateStatusText.Text = "Update service unavailable in preview mode.";
+                UpdateActionBtn.Content = "Check for Updates";
+                UpdateActionBtn.IsEnabled = false;
+                return;
+            }
+
+            switch (snapshot.Status)
+            {
+                case UpdateStatus.Checking:
+                    UpdateStatusText.Text = string.Format("Checking ({0} channel)...", snapshot.EffectiveChannel);
+                    UpdateActionBtn.Content = "Checking...";
+                    UpdateActionBtn.IsEnabled = false;
+                    break;
+                case UpdateStatus.UpdateAvailable:
+                    string availVer = snapshot.AvailableUpdate != null ? snapshot.AvailableUpdate.Version : "";
+                    UpdateStatusText.Text = string.Format("Update available: {0} ({1})", availVer, snapshot.EffectiveChannel);
+                    UpdateActionBtn.Content = "Install Update";
+                    UpdateActionBtn.IsEnabled = true;
+                    break;
+                case UpdateStatus.Downloading:
+                    UpdateStatusText.Text = string.Format("Downloading update ({0}%)...", snapshot.DownloadProgressPercent);
+                    UpdateActionBtn.Content = "Downloading...";
+                    UpdateActionBtn.IsEnabled = false;
+                    break;
+                case UpdateStatus.Installing:
+                    UpdateStatusText.Text = "Launching installer and restarting...";
+                    UpdateActionBtn.Content = "Installing...";
+                    UpdateActionBtn.IsEnabled = false;
+                    break;
+                case UpdateStatus.UpToDate:
+                    UpdateStatusText.Text = string.Format("Up to date ({0} channel).", snapshot.EffectiveChannel);
+                    UpdateActionBtn.Content = "Check for Updates";
+                    UpdateActionBtn.IsEnabled = true;
+                    break;
+                case UpdateStatus.Error:
+                    UpdateStatusText.Text = "Error: " + (snapshot.ErrorMessage ?? "Update check failed.");
+                    UpdateActionBtn.Content = "Retry Check";
+                    UpdateActionBtn.IsEnabled = true;
+                    break;
+                default:
+                    UpdateStatusText.Text = string.Equals(snapshot.EffectiveChannel, "off", StringComparison.OrdinalIgnoreCase)
+                        ? "Automatic updates are disabled."
+                        : string.Format("Ready ({0} channel).", snapshot.EffectiveChannel);
+                    UpdateActionBtn.Content = "Check for Updates";
+                    UpdateActionBtn.IsEnabled = !string.Equals(snapshot.EffectiveChannel, "off", StringComparison.OrdinalIgnoreCase);
+                    break;
+            }
+        }
+
+        private async void UpdateActionBtn_Click(object sender, RoutedEventArgs e)
+        {
+            if (_updateService == null) return;
+
+            UpdateStateSnapshot snapshot = _updateService.GetSnapshot();
+            if (snapshot.Status == UpdateStatus.UpdateAvailable && snapshot.AvailableUpdate != null)
+            {
+                MessageBoxResult confirm = MessageBox.Show(
+                    this,
+                    string.Format(
+                        "Download and install CerberusService {0}?\n\nCerberusService will restart automatically to apply the update.",
+                        snapshot.AvailableUpdate.Version),
+                    "Install Update",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Information);
+                if (confirm != MessageBoxResult.Yes) return;
+
+                await _updateService.DownloadAndInstallAsync();
+                return;
+            }
+
+            // Apply any unsaved channel selection before checking
+            string selectedChannel = GetSelectedComboValue(UpdateChannelCombo);
+            if (!string.IsNullOrWhiteSpace(selectedChannel) &&
+                !string.Equals(selectedChannel, _liveConfig.UpdateChannel, StringComparison.OrdinalIgnoreCase))
+            {
+                _liveConfig.UpdateChannel = AgentConfig.NormalizeUpdateChannel(selectedChannel);
+            }
+            await _updateService.CheckForUpdatesAsync();
         }
 
         private void BrowseSteamBtn_Click(object sender, RoutedEventArgs e)

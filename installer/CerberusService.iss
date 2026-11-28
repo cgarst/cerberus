@@ -47,6 +47,7 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDi
 Filename: "{app}\{#MyAppExeName}"; Parameters: "--configure --autostart --config ""{commonappdata}\{#MyAppName}\config.json"""; Flags: runhidden waituntilterminated; Tasks: autostart; StatusMsg: "Configuring firewall, URL ACL, and startup task..."
 Filename: "{app}\{#MyAppExeName}"; Parameters: "--configure --config ""{commonappdata}\{#MyAppName}\config.json"""; Flags: runhidden waituntilterminated; Tasks: not autostart; StatusMsg: "Configuring firewall and URL ACL..."
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; WorkingDir: "{commonappdata}\{#MyAppName}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{commonappdata}\{#MyAppName}"; Flags: nowait; Check: ShouldRelaunchAfterSilentUpdate
 
 [UninstallRun]
 Filename: "{app}\{#MyAppExeName}"; Parameters: "--unconfigure --config ""{commonappdata}\{#MyAppName}\config.json"""; Flags: runhidden waituntilterminated; RunOnceId: "CleanupCerberusService"
@@ -91,6 +92,11 @@ begin
     end;
     Result := False;
   end;
+end;
+
+function ShouldRelaunchAfterSilentUpdate(): Boolean;
+begin
+  Result := WizardSilent() and (Pos('/CERBERUSAUTOUPDATE', UpperCase(GetCmdTail())) > 0);
 end;
 
 procedure StopExistingAgent();

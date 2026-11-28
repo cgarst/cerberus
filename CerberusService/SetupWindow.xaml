@@ -492,6 +492,59 @@
                             </Grid>
                         </GroupBox>
 
+                        <!-- Updates -->
+                        <GroupBox Header="Updates"
+                                  Margin="0,0,0,10"
+                                  Padding="10,8">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="208" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Installed Version" VerticalAlignment="Center" Margin="0,4,12,4" />
+                                <TextBlock x:Name="InstalledVersionText" Grid.Row="0" Grid.Column="1" VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,4" />
+
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Update Channel" VerticalAlignment="Center" Margin="0,4,12,4" />
+                                <ComboBox x:Name="UpdateChannelCombo" Grid.Row="1" Grid.Column="1" Margin="0,4" />
+
+                                <CheckBox x:Name="CheckUpdatesOnStartupChk"
+                                          Grid.Row="2"
+                                          Grid.Column="1"
+                                          Content="Check for updates automatically"
+                                          Margin="0,4,0,6" />
+
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="Update Status" VerticalAlignment="Center" Margin="0,4,12,4" />
+                                <DockPanel Grid.Row="3" Grid.Column="1" Margin="0,4">
+                                    <Button x:Name="UpdateActionBtn"
+                                            DockPanel.Dock="Right"
+                                            Content="Check for Updates"
+                                            Padding="12,4"
+                                            Margin="8,0,0,0"
+                                            Click="UpdateActionBtn_Click" />
+                                    <TextBlock x:Name="UpdateStatusText"
+                                               VerticalAlignment="Center"
+                                               Opacity="0.88"
+                                               TextTrimming="CharacterEllipsis" />
+                                </DockPanel>
+
+                                <TextBlock Grid.Row="4"
+                                           Grid.Column="1"
+                                           Text="Auto matches the channel of your installed build (stable, beta, or alpha). Clicking Install Update downloads the verified installer and restarts CerberusService."
+                                           Opacity="0.72"
+                                           FontSize="11.5"
+                                           TextWrapping="Wrap"
+                                           Margin="0,2,0,2" />
+                            </Grid>
+                        </GroupBox>
+
                         <!-- App Shortcuts -->
                         <GroupBox Header="App Shortcuts"
                                   Margin="0,0,0,4"

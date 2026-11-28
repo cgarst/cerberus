@@ -225,6 +225,7 @@ namespace RoomAgent.Tests
             Run("StreamingConsoleEnvironmentApiStartOverrideAndNoDoubleTrigger", TestStreamingConsoleEnvironmentApiStartOverrideAndNoDoubleTrigger);
             Run("StreamingConsoleEnvironmentRevertDisabledKeepsMode", TestStreamingConsoleEnvironmentRevertDisabledKeepsMode);
             Run("StreamingConsoleEnvironmentInheritAndStopStreamingRevert", TestStreamingConsoleEnvironmentInheritAndStopStreamingRevert);
+            Run("UpdateServiceVersioningAndManifest", TestUpdateServiceVersioningAndManifest);
 
             Console.WriteLine(string.Format("Tests complete: {0} passed, {1} failed", _passed, _failed));
             return _failed == 0 ? 0 : 1;
@@ -2196,6 +2197,43 @@ namespace RoomAgent.Tests
                 Assert(actions.Calls.Contains("streaming:stop"), "Expected StopStreamingAsync to stop stream");
                 Assert(controller.ActiveConsoleEnvironmentMode == "off", "Expected StopStreamingAsync to revert console override");
             }
+        }
+
+        private static void TestUpdateServiceVersioningAndManifest()
+        {
+            Assert(AgentConfig.NormalizeUpdateChannel(null) == "auto", "Null update channel should normalize to auto");
+            Assert(AgentConfig.NormalizeUpdateChannel("ALPHA") == "alpha", "ALPHA should normalize to alpha");
+            Assert(AgentConfig.NormalizeUpdateChannel("unknown") == "auto", "Unknown channel should normalize to auto");
+
+            Assert(UpdateService.ResolveEffectiveChannel("auto", "1.0.0-alpha.20261128-abc1234") == "alpha", "Auto should resolve alpha");
+            Assert(UpdateService.ResolveEffectiveChannel("auto", "1.0.0-beta.1") == "beta", "Auto should resolve beta");
+            Assert(UpdateService.ResolveEffectiveChannel("auto", "1.0.0") == "stable", "Auto should resolve stable");
+            Assert(UpdateService.ResolveEffectiveChannel("stable", "1.0.0-alpha.20261128-abc1234") == "stable", "Explicit channel should override auto");
+
+            Assert(UpdateService.CompareVersions("1.0.1", "1.0.0") > 0, "1.0.1 > 1.0.0");
+            Assert(UpdateService.CompareVersions("1.0.0", "1.0.0-beta.1") > 0, "Stable > beta");
+            Assert(UpdateService.CompareVersions("1.0.0-beta.2", "1.0.0-alpha.20261128-abc1234") > 0, "Beta > alpha");
+            Assert(UpdateService.CompareVersions("1.0.0-alpha.20261129-0000001", "1.0.0-alpha.20261128-fffffff") > 0, "Newer alpha date > older alpha date");
+
+            Assert(!UpdateService.IsUpdateAvailable("1.0.0", "1.0.0", "stable"), "Same version should not be an update");
+            Assert(UpdateService.IsUpdateAvailable("1.0.0-alpha.20261128-fffffff", "1.0.0-alpha.20261128-0000001", "alpha"), "Same-day alpha SHA change should be detected as update");
+            Assert(!UpdateService.IsUpdateAvailable("1.0.1", "1.0.0", "stable"), "Older stable version should not be an update");
+
+            string manifestJson = @"{
+                ""schemaVersion"": 1,
+                ""channels"": {
+                    ""alpha"": {
+                        ""version"": ""1.0.0-alpha.20261129-1234567"",
+                        ""url"": ""https://example.com/CerberusServiceSetup.exe"",
+                        ""sha256"": ""abcd"",
+                        ""size"": 1024
+                    }
+                }
+            }";
+            var channels = UpdateService.ParseManifest(manifestJson);
+            Assert(channels.ContainsKey("alpha"), "Manifest should contain alpha channel");
+            Assert(channels["alpha"].Version == "1.0.0-alpha.20261129-1234567", "Manifest alpha version mismatch");
+            Assert(channels["alpha"].Sha256 == "abcd", "Manifest alpha sha256 mismatch");
         }
     }
 }

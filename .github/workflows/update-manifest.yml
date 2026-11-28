@@ -1,0 +1,46 @@
+name: Update Manifest
+
+on:
+  workflow_call:
+
+jobs:
+  update-manifest:
+    name: Update update.json
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Generate update.json from releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node .github/scripts/generate-update-manifest.mjs > "$RUNNER_TEMP/update.json"
+
+      - name: Publish update.json to updates branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if git ls-remote --exit-code --heads origin updates >/dev/null 2>&1; then
+            git fetch origin updates
+            git checkout -B updates origin/updates
+          else
+            git checkout --orphan updates
+            git rm -rf . >/dev/null 2>&1 || true
+          fi
+
+          cp "$RUNNER_TEMP/update.json" update.json
+          git add update.json
+
+          if git diff --cached --quiet; then
+            echo "update.json is already up to date."
+            exit 0
+          fi
+
+          git commit -m "Update CerberusService update.json"
+          git push origin updates

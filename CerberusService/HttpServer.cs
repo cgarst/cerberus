@@ -24,6 +24,7 @@ namespace RoomAgent
         private readonly RoomController _controller;
         private readonly ILogger _logger;
         private readonly ISystemMonitor _systemMonitor;
+        private readonly UpdateService _updateService;
         private readonly AuthService _auth = new AuthService();
         private readonly object _listenerLock = new object();
         private HttpListener _listener;
@@ -31,12 +32,13 @@ namespace RoomAgent
         private CancellationTokenSource _cts;
         private bool _disposed;
 
-        public HttpServer(AgentConfig config, RoomController controller, ILogger logger, ISystemMonitor systemMonitor = null)
+        public HttpServer(AgentConfig config, RoomController controller, ILogger logger, ISystemMonitor systemMonitor = null, UpdateService updateService = null)
         {
             _config = config;
             _controller = controller;
             _logger = logger;
             _systemMonitor = systemMonitor;
+            _updateService = updateService;
             if (_controller != null)
             {
                 _controller.ConfigReloaded += OnConfigReloaded;
@@ -370,6 +372,51 @@ namespace RoomAgent
                     updated.AuthTokenSecret = _config.AuthTokenSecret;
                     await _controller.ReloadConfigAsync(updated, rawJson).ConfigureAwait(false);
                     WriteJson(res, 200, "{\"status\":\"ok\"}");
+                    return;
+                }
+
+                if (method == "GET" && path == "/api/update")
+                {
+                    if (_updateService == null)
+                    {
+                        WriteJson(res, 200, JsonSerializer.Serialize(new
+                        {
+                            status = "unavailable",
+                            currentVersion = UpdateService.GetCurrentVersion()
+                        }, JsonOptions));
+                        return;
+                    }
+                    WriteJson(res, 200, JsonSerializer.Serialize(_updateService.GetSnapshot(), JsonOptions));
+                    return;
+                }
+
+                if (method == "POST" && path == "/api/update/check")
+                {
+                    if (_updateService == null)
+                    {
+                        WriteJson(res, 503, "{\"error\":\"update_service_unavailable\"}");
+                        return;
+                    }
+                    UpdateStateSnapshot snap = await _updateService.CheckForUpdatesAsync().ConfigureAwait(false);
+                    WriteJson(res, 200, JsonSerializer.Serialize(snap, JsonOptions));
+                    return;
+                }
+
+                if (method == "POST" && path == "/api/update/install")
+                {
+                    if (_updateService == null)
+                    {
+                        WriteJson(res, 503, "{\"error\":\"update_service_unavailable\"}");
+                        return;
+                    }
+                    UpdateStateSnapshot snap = _updateService.GetSnapshot();
+                    if (snap.Status != UpdateStatus.UpdateAvailable || snap.AvailableUpdate == null)
+                    {
+                        WriteJson(res, 409, "{\"error\":\"no_update_available\"}");
+                        return;
+                    }
+                    _ = Task.Run(() => _updateService.DownloadAndInstallAsync());
+                    WriteJson(res, 202, "{\"status\":\"installing\"}");
                     return;
                 }
 

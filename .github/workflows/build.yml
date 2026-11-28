@@ -35,7 +35,7 @@ jobs:
 
       - name: Build CerberusService and run tests
         shell: pwsh
-        run: ./scripts/build.ps1
+        run: ./scripts/build.ps1 -Version "${{ inputs.version }}"
 
       - name: Build Inno Setup installer
         shell: pwsh
@@ -63,8 +63,12 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist-pc | Out-Null
-          Copy-Item build\CerberusServiceSetup.exe "dist-pc\CerberusServiceSetup-${{ inputs.version }}-win-x64.exe"
+          $setupName = "CerberusServiceSetup-${{ inputs.version }}-win-x64.exe"
+          $setupPath = "dist-pc\$setupName"
+          Copy-Item build\CerberusServiceSetup.exe $setupPath
           Copy-Item build\CerberusService.exe "dist-pc\CerberusService-${{ inputs.version }}-win-x64.exe"
+          $hash = (Get-FileHash -Path $setupPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $setupName" | Set-Content -Path "$setupPath.sha256" -NoNewline -Encoding ascii
 
       - uses: actions/upload-artifact@v4
         with:

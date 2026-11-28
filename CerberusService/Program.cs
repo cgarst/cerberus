@@ -201,10 +201,23 @@ namespace RoomAgent
                 WindowsIdleMonitor idleMonitor = new WindowsIdleMonitor();
                 XboxReceiverControllerMonitor controllerMonitor = new XboxReceiverControllerMonitor(config.XboxReceiverDevicePrefixes);
                 WindowsSystemActions actions = new WindowsSystemActions(config, logger);
+                Application wpfApp = null;
+                Action requestShutdown = () =>
+                {
+                    if (wpfApp != null)
+                    {
+                        wpfApp.Dispatcher.BeginInvoke(new Action(() => wpfApp.Shutdown()));
+                    }
+                    else if (Application.Current != null)
+                    {
+                        Application.Current.Dispatcher.BeginInvoke(new Action(() => Application.Current.Shutdown()));
+                    }
+                };
                 using (WindowsSystemMonitor systemMonitor = new WindowsSystemMonitor(logger, config))
                 using (RoomController controller = new RoomController(config, actions, idleMonitor, controllerMonitor, logger))
-                using (HttpServer server = new HttpServer(config, controller, logger, systemMonitor))
-                using (TrayIconHost trayIcon = new TrayIconHost(config.Port, configPath, config, controller, logger))
+                using (UpdateService updateService = new UpdateService(config, logger, requestShutdown))
+                using (HttpServer server = new HttpServer(config, controller, logger, systemMonitor, updateService))
+                using (TrayIconHost trayIcon = new TrayIconHost(config.Port, configPath, config, controller, logger, updateService))
                 {
                     PowerModeChangedEventHandler powerHandler = delegate(object sender, PowerModeChangedEventArgs e)
                     {
@@ -284,7 +297,7 @@ namespace RoomAgent
 
                     try
                     {
-                        Application wpfApp = new Application
+                        wpfApp = new Application
                         {
                             ShutdownMode = ShutdownMode.OnExplicitShutdown,
                             ThemeMode = ThemeMode.System
@@ -300,6 +313,32 @@ namespace RoomAgent
                             catch (Exception ex)
                             {
                                 logger.Error("Startup state reconciliation error", ex);
+                            }
+                        });
+                        Task.Run(async () =>
+                        {
+                            try
+                            {
+                                await Task.Delay(TimeSpan.FromSeconds(10), idleCts.Token).ConfigureAwait(false);
+                                if (config.CheckForUpdatesOnStartup)
+                                {
+                                    await updateService.CheckForUpdatesAsync(idleCts.Token).ConfigureAwait(false);
+                                }
+                                while (!idleCts.Token.IsCancellationRequested)
+                                {
+                                    await Task.Delay(TimeSpan.FromHours(6), idleCts.Token).ConfigureAwait(false);
+                                    if (config.CheckForUpdatesOnStartup)
+                                    {
+                                        await updateService.CheckForUpdatesAsync(idleCts.Token).ConfigureAwait(false);
+                                    }
+                                }
+                            }
+                            catch (TaskCanceledException)
+                            {
+                            }
+                            catch (Exception ex)
+                            {
+                                logger.Warn("Background update check error: " + ex.Message);
                             }
                         });
                         // WPF message loop services SystemEvents, NotifyIcon, and SetupWindow with ThemeMode.System

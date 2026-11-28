@@ -76,6 +76,8 @@ namespace RoomAgent
         public string[] StreamingServiceNames { get; set; }
         public string[] StreamingProcessNames { get; set; }
         public string LogDirectory { get; set; }
+        public string UpdateChannel { get; set; }
+        public bool CheckForUpdatesOnStartup { get; set; }
         [System.Text.Json.Serialization.JsonIgnore]
         public string ConfigPath { get; set; }
         private List<EnvironmentConfig> _initialProfiles;
@@ -163,6 +165,8 @@ namespace RoomAgent
                 "apollo"
             };
             LogDirectory = "logs";
+            UpdateChannel = "auto";
+            CheckForUpdatesOnStartup = true;
         }
 
         private static readonly JsonSerializerOptions JsonOptions = new JsonSerializerOptions
@@ -206,6 +210,11 @@ namespace RoomAgent
             if (WakeGuardSeconds < 0) WakeGuardSeconds = defaults.WakeGuardSeconds;
             if (IdleRevertMinutes < 0) IdleRevertMinutes = defaults.IdleRevertMinutes;
             if (string.IsNullOrWhiteSpace(LogDirectory)) LogDirectory = defaults.LogDirectory;
+            UpdateChannel = NormalizeUpdateChannel(UpdateChannel);
+            if (!string.IsNullOrEmpty(rawJson) && rawJson.IndexOf("\"CheckForUpdatesOnStartup\"", StringComparison.OrdinalIgnoreCase) < 0)
+            {
+                CheckForUpdatesOnStartup = defaults.CheckForUpdatesOnStartup;
+            }
             if (BearerToken == null) BearerToken = "";
             if (AuthPasswordHash == null) AuthPasswordHash = "";
             if (AuthPasswordSalt == null) AuthPasswordSalt = "";
@@ -652,6 +661,21 @@ namespace RoomAgent
                 return "";
             }
             return NormalizeConsoleEnvironmentMode(trimmed);
+        }
+
+        public static string NormalizeUpdateChannel(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return "auto";
+            switch (value.Trim().ToLowerInvariant())
+            {
+                case "stable":
+                case "beta":
+                case "alpha":
+                case "off":
+                    return value.Trim().ToLowerInvariant();
+                default:
+                    return "auto";
+            }
         }
 
         public static string NormalizeConsoleEnvironmentMode(string mode)

@@ -21,22 +21,26 @@ namespace RoomAgent
         private readonly AgentConfig _config;
         private readonly RoomController _controller;
         private readonly ILogger _logger;
+        private readonly UpdateService _updateService;
         private readonly SynchronizationContext _uiContext;
         private readonly NotifyIcon _notifyIcon;
         private readonly ContextMenuStrip _menu;
         private ToolStripMenuItem _headerItem;
+        private ToolStripMenuItem _updateItem;
         private readonly Icon _ownedIcon;
         private SetupWindow _setupWindow;
         private IntPtr _iconHandle;
+        private string _lastNotifiedUpdateVersion;
         private bool _disposed;
 
-        public TrayIconHost(int port, string configPath, AgentConfig config, RoomController controller, ILogger logger)
+        public TrayIconHost(int port, string configPath, AgentConfig config, RoomController controller, ILogger logger, UpdateService updateService = null)
         {
             _port = port;
             _configPath = configPath;
             _config = config;
             _controller = controller;
             _logger = logger;
+            _updateService = updateService;
             _uiContext = SynchronizationContext.Current;
 
             _ownedIcon = CreateTrayIcon(out _iconHandle);
@@ -54,6 +58,22 @@ namespace RoomAgent
             {
                 _controller.ConfigReloaded += OnConfigReloaded;
             }
+
+            if (_updateService != null)
+            {
+                _updateService.StateChanged += OnUpdateStateChanged;
+                UpdateTrayUpdateItem(_updateService.GetSnapshot());
+            }
+
+            _notifyIcon.BalloonTipClicked += async delegate(object sender, EventArgs e)
+            {
+                if (_updateService == null) return;
+                UpdateStateSnapshot snap = _updateService.GetSnapshot();
+                if (snap.Status == UpdateStatus.UpdateAvailable && snap.AvailableUpdate != null)
+                {
+                    await PromptAndInstallUpdateAsync(snap);
+                }
+            };
 
             _notifyIcon.DoubleClick += delegate(object sender, EventArgs e)
             {
@@ -171,6 +191,16 @@ namespace RoomAgent
             };
             menu.Items.Add(startupItem);
 
+            if (_updateService != null)
+            {
+                _updateItem = new ToolStripMenuItem("Check for Updates...");
+                _updateItem.Click += async delegate(object sender, EventArgs e)
+                {
+                    await HandleUpdateMenuClickAsync();
+                };
+                menu.Items.Add(_updateItem);
+            }
+
             menu.Items.Add(new ToolStripSeparator());
 
             ToolStripMenuItem exitItem = new ToolStripMenuItem("Exit");
@@ -192,13 +222,154 @@ namespace RoomAgent
             return menu;
         }
 
+        private void OnUpdateStateChanged(object sender, UpdateStateSnapshot snapshot)
+        {
+            if (_disposed || snapshot == null) return;
+
+            if (_uiContext != null && SynchronizationContext.Current != _uiContext)
+            {
+                _uiContext.Post(delegate
+                {
+                    if (!_disposed)
+                    {
+                        ApplyUpdateStateToTray(snapshot);
+                    }
+                }, null);
+            }
+            else
+            {
+                ApplyUpdateStateToTray(snapshot);
+            }
+        }
+
+        private void ApplyUpdateStateToTray(UpdateStateSnapshot snapshot)
+        {
+            UpdateTrayUpdateItem(snapshot);
+            if (snapshot.Status == UpdateStatus.UpdateAvailable &&
+                snapshot.AvailableUpdate != null &&
+                !string.Equals(_lastNotifiedUpdateVersion, snapshot.AvailableUpdate.Version, StringComparison.OrdinalIgnoreCase))
+            {
+                _lastNotifiedUpdateVersion = snapshot.AvailableUpdate.Version;
+                if (_notifyIcon != null)
+                {
+                    _notifyIcon.ShowBalloonTip(
+                        5000,
+                        "CerberusService Update Available",
+                        string.Format("Version {0} is available. Click here or use the tray menu to update.", snapshot.AvailableUpdate.Version),
+                        ToolTipIcon.Info);
+                }
+            }
+        }
+
+        private void UpdateTrayUpdateItem(UpdateStateSnapshot snapshot)
+        {
+            if (_updateItem == null || snapshot == null) return;
+
+            switch (snapshot.Status)
+            {
+                case UpdateStatus.Checking:
+                    _updateItem.Text = "Checking for Updates...";
+                    _updateItem.Enabled = false;
+                    break;
+                case UpdateStatus.UpdateAvailable:
+                    string ver = snapshot.AvailableUpdate != null ? snapshot.AvailableUpdate.Version : "";
+                    _updateItem.Text = string.IsNullOrEmpty(ver)
+                        ? "Install Available Update..."
+                        : string.Format("Install Update (v{0})...", ver);
+                    _updateItem.Enabled = true;
+                    break;
+                case UpdateStatus.Downloading:
+                    _updateItem.Text = string.Format("Downloading Update ({0}%)...", snapshot.DownloadProgressPercent);
+                    _updateItem.Enabled = false;
+                    break;
+                case UpdateStatus.Installing:
+                    _updateItem.Text = "Installing Update...";
+                    _updateItem.Enabled = false;
+                    break;
+                default:
+                    _updateItem.Text = "Check for Updates...";
+                    _updateItem.Enabled = true;
+                    break;
+            }
+        }
+
+        private async Task HandleUpdateMenuClickAsync()
+        {
+            if (_updateService == null) return;
+
+            UpdateStateSnapshot current = _updateService.GetSnapshot();
+            if (current.Status == UpdateStatus.UpdateAvailable && current.AvailableUpdate != null)
+            {
+                await PromptAndInstallUpdateAsync(current);
+                return;
+            }
+
+            UpdateStateSnapshot result = await _updateService.CheckForUpdatesAsync();
+            if (result.Status == UpdateStatus.UpdateAvailable && result.AvailableUpdate != null)
+            {
+                await PromptAndInstallUpdateAsync(result);
+            }
+            else if (result.Status == UpdateStatus.UpToDate)
+            {
+                MessageBox.Show(
+                    string.Format("CerberusService is up to date (v{0}, channel: {1}).", result.CurrentVersion, result.EffectiveChannel),
+                    "CerberusService",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+            }
+            else if (result.Status == UpdateStatus.Error)
+            {
+                MessageBox.Show(
+                    "Failed to check for updates: " + (result.ErrorMessage ?? "Unknown error"),
+                    "CerberusService",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+            }
+            else if (string.Equals(result.EffectiveChannel, "off", StringComparison.OrdinalIgnoreCase))
+            {
+                MessageBox.Show(
+                    "Update checks are disabled in configuration (UpdateChannel = off).",
+                    "CerberusService",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+            }
+        }
+
+        private async Task PromptAndInstallUpdateAsync(UpdateStateSnapshot snapshot)
+        {
+            if (_updateService == null || snapshot == null || snapshot.AvailableUpdate == null) return;
+
+            DialogResult confirm = MessageBox.Show(
+                string.Format(
+                    "A new version of CerberusService is available:\n\nCurrent: {0}\nAvailable: {1} ({2})\n\nDownload and install now?",
+                    snapshot.CurrentVersion,
+                    snapshot.AvailableUpdate.Version,
+                    snapshot.EffectiveChannel),
+                "CerberusService Update",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Information);
+
+            if (confirm != DialogResult.Yes) return;
+
+            bool ok = await _updateService.DownloadAndInstallAsync();
+            if (!ok)
+            {
+                UpdateStateSnapshot failed = _updateService.GetSnapshot();
+                MessageBox.Show(
+                    "Failed to install update: " + (failed.ErrorMessage ?? "Unknown error"),
+                    "CerberusService",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            }
+        }
+
         private void OpenSetupUi()
         {
             try
             {
                 if (_setupWindow == null)
                 {
-                    _setupWindow = new SetupWindow(_config, _controller, _logger);
+                    _setupWindow = new SetupWindow(_config, _controller, _logger, updateService: _updateService);
                     _setupWindow.Closed += delegate { _setupWindow = null; };
                     _setupWindow.Show();
                 }
@@ -403,6 +574,11 @@ namespace RoomAgent
             if (_controller != null)
             {
                 _controller.ConfigReloaded -= OnConfigReloaded;
+            }
+
+            if (_updateService != null)
+            {
+                _updateService.StateChanged -= OnUpdateStateChanged;
             }
 
             if (_setupWindow != null)
