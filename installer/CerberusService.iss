@@ -28,7 +28,7 @@ CloseApplications=yes
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
-Name: "autostart"; Description: "Start {#MyAppName} automatically at Windows logon"; GroupDescription: "Startup:"; Flags: checkedonce
+Name: "autostart"; Description: "Start {#MyAppName} automatically at Windows logon"; GroupDescription: "Startup:"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Dirs]
