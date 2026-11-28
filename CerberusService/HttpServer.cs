@@ -1061,7 +1061,17 @@ namespace RoomAgent
             }
         }));
 
-        private static readonly byte[] WebIconPngBytes = BuildWebIconPng(180);
+        private static readonly byte[] WebIconPngBytes = LoadWebIconPngBytes();
+
+        private static byte[] LoadWebIconPngBytes()
+        {
+            byte[] embedded = ReadEmbeddedResourceBytes("WebUI/apple-touch-icon.png");
+            if (embedded != null && embedded.Length > 0)
+            {
+                return embedded;
+            }
+            return BuildWebIconPng(180);
+        }
         private static readonly object WebUiLock = new object();
         private static Dictionary<string, string> _webUiResourceMap;
         private static readonly Dictionary<string, byte[]> _cachedHtmlByKey = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
