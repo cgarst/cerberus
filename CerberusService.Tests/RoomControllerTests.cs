@@ -604,7 +604,7 @@ namespace RoomAgent.Tests
             {
                 ctrl.SwitchToLivingRoomAsync(true).GetAwaiter().GetResult();
                 Assert(ctrl.CurrentMode == RoomMode.LivingRoom, "Expected LivingRoom mode");
-                Assert(actions.Calls.Count == 8, "Expected 8 actions, got " + actions.Calls.Count);
+                Assert(actions.Calls.Count == 9, "Expected 9 actions, got " + actions.Calls.Count);
                 Assert(actions.Calls[0] == "close-apps:Telegram", "Expected CloseApplications first");
                 Assert(actions.Calls[1] == "windows:save", "Expected save window positions second");
                 Assert(actions.Calls[2] == "vdesktop:new", "Expected fresh virtual desktop third");
