@@ -17,16 +17,19 @@
       "appPermissions": {
         "entitlements": [],
         "privacy": {
-          "NSLocalNetworkUsageDescription": "Cerberus needs local network access to communicate with CerberusService and send Wake-on-LAN packets."
+          "NSLocalNetworkUsageDescription": "Cerberus needs local network access to communicate with CerberusService and send Wake-on-LAN packets.",
+          "NSAppTransportSecurity": {
+            "NSAllowsArbitraryLoads": true
+          }
         }
       },
       "versions": [
         {
-          "version": "1.0.0-alpha.20261127-59c61b9",
-          "date": "2026-11-27T22:41:35Z",
-          "localizedDescription": "[Alpha] Automated alpha build of `59c61b968e1b860d503e5d509d4d0dbcabea9363`.\n\n- Version: `1.0.0-alpha.20261127-59c61b9`\n- Channel: `alpha`",
-          "downloadURL": "https://github.com/cgarst/cerberus/releases/download/alpha/Cerberus-1.0.0-alpha.20261127-59c61b9-ios-unsigned.ipa",
-          "size": 14006376
+          "version": "1.0.0-alpha.20261128-36c902a",
+          "date": "2026-11-28T13:35:09Z",
+          "localizedDescription": "[Alpha] Automated alpha build of `36c902a40137313101d25ccf5d489d93e094c7ad`.\n\n- Version: `1.0.0-alpha.20261128-36c902a`\n- Channel: `alpha`",
+          "downloadURL": "https://github.com/cgarst/cerberus/releases/download/alpha/Cerberus-1.0.0-alpha.20261128-36c902a-ios-unsigned.ipa",
+          "size": 15058700
         }
       ]
     }
