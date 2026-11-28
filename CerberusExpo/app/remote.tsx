@@ -51,7 +51,7 @@ const QUICK_KEYS: QuickKeyDef[] = [
   { id: 'shift-tab', label: 'Shift+Tab', combo: [0x10, 0x09] },
   { id: 'win-g', label: 'Win+G', combo: [0x5b, 0x47] },
   { id: 'win', label: 'Win', vk: 0x5b },
-  { id: 'alt-tab', label: 'Alt+Tab', combo: [0x12, 0x09] },
+  { id: 'win-tab', label: 'Win+Tab', combo: [0x5b, 0x09] },
   { id: 'alt-f4', label: 'Alt+F4', combo: [0x12, 0x73] },
   { id: 'left', label: '←', vk: 0x25 },
   { id: 'up', label: '↑', vk: 0x26 },
