@@ -5,6 +5,7 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Net;
+using System.Net.WebSockets;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
@@ -26,6 +27,7 @@ namespace RoomAgent
         private readonly ISystemMonitor _systemMonitor;
         private readonly UpdateService _updateService;
         private readonly AuthService _auth = new AuthService();
+        private readonly IRemoteInputSender _remoteInputSender = new WindowsRemoteInputSender();
         private readonly object _listenerLock = new object();
         private HttpListener _listener;
         private int _listeningPort;
@@ -214,6 +216,36 @@ namespace RoomAgent
                         { "enabled", true },
                         { "token", issuedToken }
                     }, JsonOptions));
+                    return;
+                }
+
+                if (method == "GET" && path == "/api/input/ws")
+                {
+                    if (!AuthService.IsAuthEnabled(_config))
+                    {
+                        WriteJson(res, 403, "{\"error\":\"auth_required_for_remote_input\"}");
+                        return;
+                    }
+
+                    string wsToken = ExtractBearerToken(req.Headers["Authorization"]);
+                    if (string.IsNullOrWhiteSpace(wsToken))
+                    {
+                        wsToken = req.QueryString["token"] ?? "";
+                    }
+                    if (!AuthService.VerifyToken(_config, wsToken))
+                    {
+                        res.Headers["WWW-Authenticate"] = "Bearer";
+                        WriteJson(res, 401, "{\"error\":\"unauthorized\"}");
+                        return;
+                    }
+
+                    if (!req.IsWebSocketRequest)
+                    {
+                        WriteJson(res, 400, "{\"error\":\"websocket_required\"}");
+                        return;
+                    }
+
+                    await HandleRemoteInputWebSocketAsync(ctx).ConfigureAwait(false);
                     return;
                 }
 
@@ -451,6 +483,7 @@ namespace RoomAgent
                     Dictionary<string, object> healthPayload = new Dictionary<string, object>
                     {
                         { "status", "ok" },
+                        { "authEnabled", AuthService.IsAuthEnabled(_config) },
                         { "mode", modeStr },
                         { "underlyingMode", underlyingMode },
                         { "activeProfileId", _controller.ActiveProfileId },
@@ -957,6 +990,29 @@ namespace RoomAgent
                     return;
                 }
 
+                if (method == "POST" && path == "/api/input")
+                {
+                    if (!AuthService.IsAuthEnabled(_config))
+                    {
+                        WriteJson(res, 403, "{\"error\":\"auth_required_for_remote_input\"}");
+                        return;
+                    }
+
+                    string rawJson = ReadRawBody(req);
+                    string inputErr;
+                    if (!RemoteInputProcessor.ProcessJsonMessage(rawJson, _remoteInputSender, out inputErr))
+                    {
+                        WriteJson(res, 400, JsonSerializer.Serialize(new Dictionary<string, object>
+                        {
+                            { "error", inputErr ?? "invalid_input" }
+                        }, JsonOptions));
+                        return;
+                    }
+
+                    WriteJson(res, 200, "{\"status\":\"ok\"}");
+                    return;
+                }
+
                 if (method == "GET" && !path.StartsWith("/api/") && TryServeWebUiAsset(rawPath, res))
                 {
                     return;
@@ -1333,6 +1389,77 @@ namespace RoomAgent
                 return authHeader.Substring(prefix.Length).Trim();
             }
             return "";
+        }
+
+        private async Task HandleRemoteInputWebSocketAsync(HttpListenerContext ctx)
+        {
+            HttpListenerWebSocketContext wsCtx = await ctx.AcceptWebSocketAsync(null).ConfigureAwait(false);
+            WebSocket socket = wsCtx.WebSocket;
+            byte[] buffer = new byte[4096];
+            CancellationToken token = _cts != null ? _cts.Token : CancellationToken.None;
+
+            try
+            {
+                using (MemoryStream ms = new MemoryStream())
+                {
+                    while (socket.State == WebSocketState.Open && !token.IsCancellationRequested)
+                    {
+                        ms.SetLength(0);
+                        WebSocketReceiveResult result;
+                        do
+                        {
+                            result = await socket.ReceiveAsync(new ArraySegment<byte>(buffer), token).ConfigureAwait(false);
+                            if (result.MessageType == WebSocketMessageType.Close)
+                            {
+                                if (socket.State == WebSocketState.CloseReceived)
+                                {
+                                    await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "", CancellationToken.None).ConfigureAwait(false);
+                                }
+                                return;
+                            }
+
+                            if (ms.Length + result.Count > 16384)
+                            {
+                                await socket.CloseAsync(WebSocketCloseStatus.MessageTooBig, "Message too big", CancellationToken.None).ConfigureAwait(false);
+                                return;
+                            }
+
+                            if (result.Count > 0)
+                            {
+                                ms.Write(buffer, 0, result.Count);
+                            }
+                        }
+                        while (!result.EndOfMessage);
+
+                        if (result.MessageType == WebSocketMessageType.Text && ms.Length > 0)
+                        {
+                            string message = Encoding.UTF8.GetString(ms.GetBuffer(), 0, (int)ms.Length);
+                            string ignoredError;
+                            RemoteInputProcessor.ProcessJsonMessage(message, _remoteInputSender, out ignoredError);
+                        }
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (WebSocketException)
+            {
+            }
+            catch (Exception ex)
+            {
+                _logger.Warn("Remote input WebSocket closed with error: " + ex.Message);
+            }
+            finally
+            {
+                try
+                {
+                    socket.Dispose();
+                }
+                catch
+                {
+                }
+            }
         }
 
         private static void WriteBytes(HttpListenerResponse res, int statusCode, string contentType, byte[] bytes, string cacheControl)

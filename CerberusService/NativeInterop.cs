@@ -22,9 +22,22 @@ namespace RoomAgent
         private const uint ABS_AUTOHIDE = 0x00000001;
         private const int FCIDM_SHVIEW_TOGGLE_ICONS = 0x7402;
         private const uint SMTO_ABORTIFHUNG = 0x0002;
+        private const uint INPUT_MOUSE = 0;
         private const uint INPUT_KEYBOARD = 1;
         private const uint KEYEVENTF_EXTENDEDKEY = 0x0001;
         private const uint KEYEVENTF_KEYUP = 0x0002;
+        private const uint KEYEVENTF_UNICODE = 0x0004;
+        private const uint MOUSEEVENTF_MOVE = 0x0001;
+        private const uint MOUSEEVENTF_LEFTDOWN = 0x0002;
+        private const uint MOUSEEVENTF_LEFTUP = 0x0004;
+        private const uint MOUSEEVENTF_RIGHTDOWN = 0x0008;
+        private const uint MOUSEEVENTF_RIGHTUP = 0x0010;
+        private const uint MOUSEEVENTF_MIDDLEDOWN = 0x0020;
+        private const uint MOUSEEVENTF_MIDDLEUP = 0x0040;
+        private const uint MOUSEEVENTF_WHEEL = 0x0800;
+        private const uint MOUSEEVENTF_HWHEEL = 0x1000;
+        private const ushort VK_BACK = 0x08;
+        private const ushort VK_RETURN = 0x0D;
         private const ushort VK_CONTROL = 0x11;
         private const ushort VK_LEFT = 0x25;
         private const ushort VK_RIGHT = 0x27;
@@ -2750,6 +2763,227 @@ namespace RoomAgent
             x = width - 1;
             y = height - 1;
             return SetCursorPos(x, y);
+        }
+
+        private static INPUT CreateMouseInput(int dx, int dy, uint mouseData, uint dwFlags)
+        {
+            return new INPUT
+            {
+                type = INPUT_MOUSE,
+                u = new InputUnion
+                {
+                    mi = new MOUSEINPUT
+                    {
+                        dx = dx,
+                        dy = dy,
+                        mouseData = mouseData,
+                        dwFlags = dwFlags,
+                        time = 0,
+                        dwExtraInfo = UIntPtr.Zero
+                    }
+                }
+            };
+        }
+
+        private static INPUT CreateUnicodeKeyInput(ushort scanCode, uint flags)
+        {
+            return new INPUT
+            {
+                type = INPUT_KEYBOARD,
+                u = new InputUnion
+                {
+                    ki = new KEYBDINPUT
+                    {
+                        wVk = 0,
+                        wScan = scanCode,
+                        dwFlags = KEYEVENTF_UNICODE | flags,
+                        time = 0,
+                        dwExtraInfo = UIntPtr.Zero
+                    }
+                }
+            };
+        }
+
+        private static bool IsExtendedVirtualKey(ushort vk)
+        {
+            switch (vk)
+            {
+                case 0x21: // VK_PRIOR (Page Up)
+                case 0x22: // VK_NEXT (Page Down)
+                case 0x23: // VK_END
+                case 0x24: // VK_HOME
+                case 0x25: // VK_LEFT
+                case 0x26: // VK_UP
+                case 0x27: // VK_RIGHT
+                case 0x28: // VK_DOWN
+                case 0x2C: // VK_SNAPSHOT
+                case 0x2D: // VK_INSERT
+                case 0x2E: // VK_DELETE
+                case 0x5B: // VK_LWIN
+                case 0x5C: // VK_RWIN
+                case 0x5D: // VK_APPS
+                case 0x6F: // VK_DIVIDE
+                case 0x90: // VK_NUMLOCK
+                case 0xA3: // VK_RCONTROL
+                case 0xA5: // VK_RMENU
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        public static bool MoveMouseRelative(int dx, int dy)
+        {
+            if (dx == 0 && dy == 0) return true;
+            INPUT[] inputs = new INPUT[]
+            {
+                CreateMouseInput(dx, dy, 0, MOUSEEVENTF_MOVE)
+            };
+            uint sent = SendInput((uint)inputs.Length, inputs, Marshal.SizeOf(typeof(INPUT)));
+            return sent == inputs.Length;
+        }
+
+        public static bool SendMouseButton(string button, string action)
+        {
+            uint downFlag;
+            uint upFlag;
+            if (string.Equals(button, "right", StringComparison.OrdinalIgnoreCase))
+            {
+                downFlag = MOUSEEVENTF_RIGHTDOWN;
+                upFlag = MOUSEEVENTF_RIGHTUP;
+            }
+            else if (string.Equals(button, "middle", StringComparison.OrdinalIgnoreCase))
+            {
+                downFlag = MOUSEEVENTF_MIDDLEDOWN;
+                upFlag = MOUSEEVENTF_MIDDLEUP;
+            }
+            else
+            {
+                downFlag = MOUSEEVENTF_LEFTDOWN;
+                upFlag = MOUSEEVENTF_LEFTUP;
+            }
+
+            INPUT[] inputs;
+            if (string.Equals(action, "down", StringComparison.OrdinalIgnoreCase))
+            {
+                inputs = new INPUT[] { CreateMouseInput(0, 0, 0, downFlag) };
+            }
+            else if (string.Equals(action, "up", StringComparison.OrdinalIgnoreCase))
+            {
+                inputs = new INPUT[] { CreateMouseInput(0, 0, 0, upFlag) };
+            }
+            else
+            {
+                inputs = new INPUT[]
+                {
+                    CreateMouseInput(0, 0, 0, downFlag),
+                    CreateMouseInput(0, 0, 0, upFlag)
+                };
+            }
+
+            uint sent = SendInput((uint)inputs.Length, inputs, Marshal.SizeOf(typeof(INPUT)));
+            return sent == inputs.Length;
+        }
+
+        public static bool SendMouseScroll(int deltaX, int deltaY)
+        {
+            List<INPUT> inputs = new List<INPUT>(2);
+            if (deltaY != 0)
+            {
+                inputs.Add(CreateMouseInput(0, 0, unchecked((uint)deltaY), MOUSEEVENTF_WHEEL));
+            }
+            if (deltaX != 0)
+            {
+                inputs.Add(CreateMouseInput(0, 0, unchecked((uint)deltaX), MOUSEEVENTF_HWHEEL));
+            }
+            if (inputs.Count == 0) return true;
+            uint sent = SendInput((uint)inputs.Count, inputs.ToArray(), Marshal.SizeOf(typeof(INPUT)));
+            return sent == inputs.Count;
+        }
+
+        public static bool SendKey(ushort vk, string action)
+        {
+            uint ext = IsExtendedVirtualKey(vk) ? KEYEVENTF_EXTENDEDKEY : 0;
+            INPUT[] inputs;
+            if (string.Equals(action, "down", StringComparison.OrdinalIgnoreCase))
+            {
+                inputs = new INPUT[] { CreateKeyInput(vk, ext) };
+            }
+            else if (string.Equals(action, "up", StringComparison.OrdinalIgnoreCase))
+            {
+                inputs = new INPUT[] { CreateKeyInput(vk, ext | KEYEVENTF_KEYUP) };
+            }
+            else
+            {
+                inputs = new INPUT[]
+                {
+                    CreateKeyInput(vk, ext),
+                    CreateKeyInput(vk, ext | KEYEVENTF_KEYUP)
+                };
+            }
+
+            uint sent = SendInput((uint)inputs.Length, inputs, Marshal.SizeOf(typeof(INPUT)));
+            return sent == inputs.Length;
+        }
+
+        public static bool SendKeyCombo(ushort[] vks)
+        {
+            if (vks == null || vks.Length == 0) return false;
+            INPUT[] inputs = new INPUT[vks.Length * 2];
+            for (int i = 0; i < vks.Length; i++)
+            {
+                uint ext = IsExtendedVirtualKey(vks[i]) ? KEYEVENTF_EXTENDEDKEY : 0;
+                inputs[i] = CreateKeyInput(vks[i], ext);
+            }
+            for (int i = 0; i < vks.Length; i++)
+            {
+                int reverseIdx = vks.Length - 1 - i;
+                uint ext = IsExtendedVirtualKey(vks[reverseIdx]) ? KEYEVENTF_EXTENDEDKEY : 0;
+                inputs[vks.Length + i] = CreateKeyInput(vks[reverseIdx], ext | KEYEVENTF_KEYUP);
+            }
+
+            uint sent = SendInput((uint)inputs.Length, inputs, Marshal.SizeOf(typeof(INPUT)));
+            return sent == inputs.Length;
+        }
+
+        public static bool SendUnicodeText(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return true;
+            List<INPUT> inputs = new List<INPUT>(text.Length * 2);
+            for (int i = 0; i < text.Length; i++)
+            {
+                char ch = text[i];
+                if (ch == '\r')
+                {
+                    if (i + 1 < text.Length && text[i + 1] == '\n') i++;
+                    inputs.Add(CreateKeyInput(VK_RETURN, 0));
+                    inputs.Add(CreateKeyInput(VK_RETURN, KEYEVENTF_KEYUP));
+                }
+                else if (ch == '\n')
+                {
+                    inputs.Add(CreateKeyInput(VK_RETURN, 0));
+                    inputs.Add(CreateKeyInput(VK_RETURN, KEYEVENTF_KEYUP));
+                }
+                else if (ch == '\b')
+                {
+                    inputs.Add(CreateKeyInput(VK_BACK, 0));
+                    inputs.Add(CreateKeyInput(VK_BACK, KEYEVENTF_KEYUP));
+                }
+                else if (ch == '\t')
+                {
+                    inputs.Add(CreateKeyInput(VK_TAB, 0));
+                    inputs.Add(CreateKeyInput(VK_TAB, KEYEVENTF_KEYUP));
+                }
+                else
+                {
+                    inputs.Add(CreateUnicodeKeyInput(ch, 0));
+                    inputs.Add(CreateUnicodeKeyInput(ch, KEYEVENTF_KEYUP));
+                }
+            }
+
+            if (inputs.Count == 0) return true;
+            uint sent = SendInput((uint)inputs.Count, inputs.ToArray(), Marshal.SizeOf(typeof(INPUT)));
+            return sent == inputs.Count;
         }
     }
 }

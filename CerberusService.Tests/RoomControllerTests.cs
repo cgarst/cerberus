@@ -228,6 +228,7 @@ namespace RoomAgent.Tests
             Run("StreamingConsoleEnvironmentInheritAndStopStreamingRevert", TestStreamingConsoleEnvironmentInheritAndStopStreamingRevert);
             Run("UpdateServiceVersioningAndManifest", TestUpdateServiceVersioningAndManifest);
             Run("ConsoleEnvironmentMovesCursorToLowerRightCorner", TestConsoleEnvironmentMovesCursorToLowerRightCorner);
+            Run("RemoteInputProcessorParsesAndClampsPayloads", TestRemoteInputProcessorParsesAndClampsPayloads);
 
             Console.WriteLine(string.Format("Tests complete: {0} passed, {1} failed", _passed, _failed));
             return _failed == 0 ? 0 : 1;
@@ -2266,6 +2267,44 @@ namespace RoomAgent.Tests
                     Assert(actions.Calls.Contains("cursor:lower-right"), "Expected cursor move when switching console environment in-place to " + mode);
                 }
             }
+        }
+
+        private sealed class FakeRemoteInputSender : IRemoteInputSender
+        {
+            public readonly List<string> Events = new List<string>();
+            public bool MoveMouseRelative(int dx, int dy) { Events.Add("move:" + dx + "," + dy); return true; }
+            public bool SendMouseButton(string button, string action) { Events.Add("btn:" + button + ":" + action); return true; }
+            public bool SendMouseScroll(int deltaX, int deltaY) { Events.Add("scroll:" + deltaX + "," + deltaY); return true; }
+            public bool SendKey(ushort vk, string action) { Events.Add("key:" + vk + ":" + action); return true; }
+            public bool SendKeyCombo(ushort[] vks) { Events.Add("combo:" + string.Join("+", vks)); return true; }
+            public bool SendUnicodeText(string text) { Events.Add("text:" + text); return true; }
+        }
+
+        private static void TestRemoteInputProcessorParsesAndClampsPayloads()
+        {
+            FakeRemoteInputSender sender = new FakeRemoteInputSender();
+            string err;
+
+            Assert(RemoteInputProcessor.ProcessJsonMessage("{\"t\":\"move\",\"dx\":5000,\"dy\":-5000}", sender, out err), "Expected move to succeed");
+            Assert(sender.Events[0] == "move:2000,-2000", "Expected clamped move delta");
+
+            Assert(RemoteInputProcessor.ProcessJsonMessage("{\"t\":\"btn\",\"b\":\"right\",\"a\":\"click\"}", sender, out err), "Expected btn to succeed");
+            Assert(sender.Events[1] == "btn:right:click", "Expected right click");
+
+            Assert(RemoteInputProcessor.ProcessJsonMessage("{\"t\":\"scroll\",\"dx\":0,\"dy\":-120}", sender, out err), "Expected scroll to succeed");
+            Assert(sender.Events[2] == "scroll:0,-120", "Expected scroll delta");
+
+            Assert(RemoteInputProcessor.ProcessJsonMessage("{\"t\":\"key\",\"vk\":13,\"a\":\"press\"}", sender, out err), "Expected Enter key to succeed");
+            Assert(sender.Events[3] == "key:13:press", "Expected VK_RETURN");
+
+            Assert(RemoteInputProcessor.ProcessJsonMessage("{\"t\":\"combo\",\"vks\":[91,71]}", sender, out err), "Expected Win+G combo to succeed");
+            Assert(sender.Events[4] == "combo:91+71", "Expected Win+G vks");
+
+            Assert(RemoteInputProcessor.ProcessJsonMessage("{\"t\":\"text\",\"s\":\"abc\"}", sender, out err), "Expected text to succeed");
+            Assert(sender.Events[5] == "text:abc", "Expected text payload");
+
+            Assert(!RemoteInputProcessor.ProcessJsonMessage("{\"t\":\"btn\",\"b\":\"invalid\"}", sender, out err), "Expected invalid button to fail");
+            Assert(err == "invalid_button", "Expected invalid_button error");
         }
     }
 }

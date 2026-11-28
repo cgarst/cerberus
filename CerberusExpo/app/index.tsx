@@ -1,6 +1,7 @@
 import React, { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Image,
   Platform,
   RefreshControl,
@@ -173,11 +174,46 @@ export default function HomeScreen() {
     };
   }, [displayHeroUri, heroHeaders]);
 
+  const remoteInputEnabled = Boolean(vm.health?.authEnabled) || vm.isDemoMode;
+
+  const handleOpenRemoteInput = React.useCallback(() => {
+    if (remoteInputEnabled) {
+      triggerHaptic('light');
+      router.push('/remote');
+      return;
+    }
+
+    triggerHaptic('warning');
+    const title = !vm.pcOnline ? 'PC Offline' : 'Password Required';
+    const message = !vm.pcOnline
+      ? 'Connect to CerberusService to use remote mouse and keyboard.'
+      : 'Remote mouse and keyboard control requires password authentication to be set up in CerberusService.';
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.alert === 'function') {
+      window.alert(`${title}\n\n${message}`);
+    } else {
+      Alert.alert(title, message);
+    }
+  }, [remoteInputEnabled, router, vm.pcOnline]);
+
   useLayoutEffect(() => {
     if (Platform.OS === 'ios') return;
     navigation.setOptions({
       headerRight: () => (
         <View style={styles.headerActions}>
+          <SteamPressable
+            onPress={handleOpenRemoteInput}
+            hitSlop={10}
+            style={[
+              styles.headerBtn,
+              !remoteInputEnabled && styles.headerBtnDisabled,
+            ]}
+          >
+            <Ionicons
+              name="keypad-outline"
+              size={18}
+              color={remoteInputEnabled ? Colors.text : Colors.textMuted}
+            />
+          </SteamPressable>
           <SteamPressable
             onPress={() => {
               triggerHaptic('light');
@@ -201,7 +237,7 @@ export default function HomeScreen() {
         </View>
       ),
     });
-  }, [navigation, router, vm]);
+  }, [handleOpenRemoteInput, navigation, remoteInputEnabled, router, vm]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -233,6 +269,12 @@ export default function HomeScreen() {
     <>
       {Platform.OS === 'ios' && (
         <Stack.Toolbar placement="right">
+          <Stack.Toolbar.Button
+            icon="computermouse"
+            accessibilityLabel="Remote Input"
+            tintColor={remoteInputEnabled ? undefined : Colors.textMuted}
+            onPress={handleOpenRemoteInput}
+          />
           <Stack.Toolbar.Button
             icon="arrow.clockwise"
             accessibilityLabel="Refresh"
@@ -830,6 +872,9 @@ const styles = StyleSheet.create({
           borderColor: Colors.border,
         }
       : null),
+  },
+  headerBtnDisabled: {
+    opacity: 0.4,
   },
   heroBanner: {
     position: 'relative',

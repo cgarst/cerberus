@@ -60,6 +60,7 @@ export interface SystemMetrics {
 
 export interface HealthResponse {
   status?: string | null;
+  authEnabled?: boolean | null;
   mode?: string | null;
   underlyingMode?: string | null;
   activeProfileId?: string | null;
@@ -144,6 +145,18 @@ export function getBaseUrl(config: PCConnectionConfig): string | null {
     return null;
   }
   return `http://${trimmedHost}:${config.pcPort}`;
+}
+
+export function getWsBaseUrl(config: PCConnectionConfig): string | null {
+  const baseUrl = getBaseUrl(config);
+  if (!baseUrl) return null;
+  if (baseUrl.startsWith('https://')) {
+    return `wss://${baseUrl.slice('https://'.length)}`;
+  }
+  if (baseUrl.startsWith('http://')) {
+    return `ws://${baseUrl.slice('http://'.length)}`;
+  }
+  return baseUrl;
 }
 
 export function normalizeHostInput(
