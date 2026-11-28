@@ -25,11 +25,11 @@
       },
       "versions": [
         {
-          "version": "1.0.0-alpha.20261128-8274c85",
-          "date": "2026-11-28T16:33:46Z",
-          "localizedDescription": "[Alpha] Automated alpha build of `8274c85dd7225a2cb8ede97d71eeae63a3bcb65f`.\n\n- Version: `1.0.0-alpha.20261128-8274c85`\n- Channel: `alpha`",
-          "downloadURL": "https://github.com/cgarst/cerberus/releases/download/alpha/Cerberus-1.0.0-alpha.20261128-8274c85-ios-unsigned.ipa",
-          "size": 15075482
+          "version": "1.0.0-alpha.20261128-0fbb184",
+          "date": "2026-11-28T17:34:57Z",
+          "localizedDescription": "[Alpha] Automated alpha build of `0fbb18496a3b0ac4ca399f2f90cca910bd7e813b`.\n\n- Version: `1.0.0-alpha.20261128-0fbb184`\n- Channel: `alpha`",
+          "downloadURL": "https://github.com/cgarst/cerberus/releases/download/alpha/Cerberus-1.0.0-alpha.20261128-0fbb184-ios-unsigned.ipa",
+          "size": 15078304
         }
       ]
     }
