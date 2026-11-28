@@ -483,6 +483,7 @@ namespace RoomAgent
                     Dictionary<string, object> healthPayload = new Dictionary<string, object>
                     {
                         { "status", "ok" },
+                        { "version", UpdateService.GetCurrentVersion() },
                         { "authEnabled", AuthService.IsAuthEnabled(_config) },
                         { "mode", modeStr },
                         { "underlyingMode", underlyingMode },

@@ -7,6 +7,7 @@ import {
   OsdResponse,
   PCConnectionConfig,
   ShortcutsResponse,
+  UpdateStatusResponse,
   WindowsResponse,
 } from './models';
 
@@ -146,6 +147,10 @@ export class RoomAgentClient {
 
   async fetchHealth(timeoutMs = 2000): Promise<HealthResponse> {
     return this.request<HealthResponse>('GET', '/api/health', undefined, timeoutMs);
+  }
+
+  async fetchUpdateStatus(timeoutMs = 3000): Promise<UpdateStatusResponse> {
+    return this.request<UpdateStatusResponse>('GET', '/api/update', undefined, timeoutMs);
   }
 
   async switchMode(

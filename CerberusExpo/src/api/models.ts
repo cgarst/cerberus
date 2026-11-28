@@ -60,6 +60,7 @@ export interface SystemMetrics {
 
 export interface HealthResponse {
   status?: string | null;
+  version?: string | null;
   authEnabled?: boolean | null;
   mode?: string | null;
   underlyingMode?: string | null;
@@ -110,6 +111,11 @@ export interface WindowsResponse {
 export interface OsdResponse {
   status?: string | null;
   osdEnabled?: boolean | null;
+}
+
+export interface UpdateStatusResponse {
+  status?: string | null;
+  currentVersion?: string | null;
 }
 
 export interface ApiErrorResponse {

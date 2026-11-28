@@ -393,6 +393,24 @@ export default function HomeScreen() {
           </View>
         ) : null}
 
+        {vm.serverUpdateAdvisory ? (
+          <View style={styles.warningBanner}>
+            <Ionicons name="arrow-up-circle" size={18} color={Colors.orange} />
+            <View style={styles.warningTextWrap}>
+              <Text style={styles.warningTitle}>Server Update Required</Text>
+              <Text style={styles.warningText}>
+                {vm.serverUpdateAdvisory.message}
+              </Text>
+            </View>
+            <SteamPressable
+              onPress={vm.dismissServerUpdateAdvisory}
+              hitSlop={8}
+            >
+              <Ionicons name="close" size={16} color={Colors.textSecondary} />
+            </SteamPressable>
+          </View>
+        ) : null}
+
         {vm.wakeInProgress ? (
           <WakingSection
             targetMode={vm.wakeTargetMode}
@@ -950,6 +968,30 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 13,
     color: Colors.text,
+  },
+  warningBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 12,
+    borderRadius: Radii.sm,
+    backgroundColor: Colors.orangeBg,
+    borderWidth: 1,
+    borderColor: Colors.orangeBorder,
+  },
+  warningTextWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  warningTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.textBright,
+  },
+  warningText: {
+    fontSize: 12,
+    color: Colors.text,
+    lineHeight: 17,
   },
   offlineContainer: {
     gap: 10,

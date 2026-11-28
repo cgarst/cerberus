@@ -34,6 +34,17 @@ import {
   saveSetting,
 } from './storage';
 import { sendWakeOnLanPacket } from '../utils/wakeOnLan';
+import {
+  getClientVersion,
+  isServerVersionOlder,
+  normalizeVersionString,
+} from '../utils/version';
+
+export interface ServerUpdateAdvisory {
+  clientVersion: string;
+  serverVersion: string | null;
+  message: string;
+}
 
 interface PCRemoteContextValue {
   settingsLoaded: boolean;
@@ -59,6 +70,8 @@ interface PCRemoteContextValue {
   wakeTargetMode: string;
   lastError: string | null;
   clearError: () => void;
+  serverUpdateAdvisory: ServerUpdateAdvisory | null;
+  dismissServerUpdateAdvisory: () => void;
   needsHostSetup: boolean;
   authRequired: boolean;
   authError: string | null;
@@ -121,6 +134,9 @@ export function PCRemoteProvider({ children }: { children: React.ReactNode }) {
   const [authRequired, setAuthRequired] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authSubmitting, setAuthSubmitting] = useState(false);
+  const [serverVersion, setServerVersion] = useState<string | null>(null);
+  const [legacyServerDetected, setLegacyServerDetected] = useState(false);
+  const [updateAdvisoryDismissed, setUpdateAdvisoryDismissed] = useState(false);
 
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
@@ -138,6 +154,8 @@ export function PCRemoteProvider({ children }: { children: React.ReactNode }) {
   const statusInFlightRef = useRef<Promise<boolean> | null>(null);
   const windowsInFlightRef = useRef<Promise<void> | null>(null);
   const consecutiveFailuresRef = useRef(0);
+  const updateProbeDoneRef = useRef(false);
+  const updateProbeTargetRef = useRef('');
   const isAppActiveRef = useRef(
     AppState.currentState === 'active' || AppState.currentState === 'unknown'
   );
@@ -276,12 +294,23 @@ export function PCRemoteProvider({ children }: { children: React.ReactNode }) {
       if (settingsRef.current.pcHost.trim().length === 0) {
         consecutiveFailuresRef.current = 0;
         pcOnlineRef.current = false;
+        updateProbeDoneRef.current = false;
         setHasCompletedInitialCheck(true);
         setPcOnline(false);
         setHealth(null);
+        setServerVersion(null);
+        setLegacyServerDetected(false);
         setAuthRequired(false);
         setLastError(null);
         return false;
+      }
+      const targetKey = `${settingsRef.current.pcHost.trim()}:${settingsRef.current.pcPort}`;
+      if (updateProbeTargetRef.current !== targetKey) {
+        updateProbeTargetRef.current = targetKey;
+        updateProbeDoneRef.current = false;
+        setServerVersion(null);
+        setLegacyServerDetected(false);
+        setUpdateAdvisoryDismissed(false);
       }
       const client = new RoomAgentClient(getConfig());
       try {
@@ -293,6 +322,36 @@ export function PCRemoteProvider({ children }: { children: React.ReactNode }) {
         setAuthRequired(false);
         setAuthError(null);
         setHealth(result);
+        const healthVersion = result.version?.trim();
+        if (healthVersion) {
+          updateProbeDoneRef.current = true;
+          setServerVersion(healthVersion);
+          setLegacyServerDetected(false);
+        } else if (!updateProbeDoneRef.current) {
+          updateProbeDoneRef.current = true;
+          void client
+            .fetchUpdateStatus(3000)
+            .then((upd) => {
+              if (updateProbeTargetRef.current !== targetKey) return;
+              const ver = upd?.currentVersion?.trim();
+              if (ver) {
+                setServerVersion(ver);
+                setLegacyServerDetected(false);
+              }
+            })
+            .catch((probeErr) => {
+              if (updateProbeTargetRef.current !== targetKey) return;
+              if (
+                probeErr instanceof RoomAgentClientError &&
+                probeErr.statusCode === 404
+              ) {
+                setLegacyServerDetected(true);
+                setServerVersion(null);
+              } else {
+                updateProbeDoneRef.current = false;
+              }
+            });
+        }
         const wolMac = result.wolMac?.trim();
         if (wolMac && settingsRef.current.pcMac.trim().length === 0) {
           updateSetting('pcMac', wolMac);
@@ -348,9 +407,12 @@ export function PCRemoteProvider({ children }: { children: React.ReactNode }) {
           consecutiveFailuresRef.current += 1;
           if (!pcOnlineRef.current || consecutiveFailuresRef.current >= 2) {
             pcOnlineRef.current = false;
+            updateProbeDoneRef.current = false;
             setHasCompletedInitialCheck(true);
             setPcOnline(false);
             setHealth(null);
+            setServerVersion(null);
+            setLegacyServerDetected(false);
             shortcutsLoadedRef.current = false;
             setShortcuts([]);
             setWindows([]);
@@ -913,6 +975,45 @@ export function PCRemoteProvider({ children }: { children: React.ReactNode }) {
   ]);
 
   const clearError = useCallback(() => setLastError(null), []);
+  const dismissServerUpdateAdvisory = useCallback(
+    () => setUpdateAdvisoryDismissed(true),
+    []
+  );
+
+  const serverUpdateAdvisory = useMemo<ServerUpdateAdvisory | null>(() => {
+    if (settings.isDemoMode || !pcOnline || updateAdvisoryDismissed) {
+      return null;
+    }
+    const clientVersion = getClientVersion();
+    if (legacyServerDetected) {
+      return {
+        clientVersion,
+        serverVersion: null,
+        message: clientVersion
+          ? `CerberusService on your PC is running an older version and requires an update (client v${clientVersion}).`
+          : 'CerberusService on your PC is running an older version and requires an update.',
+      };
+    }
+    if (
+      serverVersion &&
+      clientVersion &&
+      isServerVersionOlder(serverVersion, clientVersion)
+    ) {
+      const normServer = normalizeVersionString(serverVersion);
+      return {
+        clientVersion,
+        serverVersion: normServer,
+        message: `CerberusService on your PC (v${normServer}) is older than this client (v${clientVersion}) and requires an update.`,
+      };
+    }
+    return null;
+  }, [
+    legacyServerDetected,
+    pcOnline,
+    serverVersion,
+    settings.isDemoMode,
+    updateAdvisoryDismissed,
+  ]);
 
   const needsHostSetup =
     settingsLoaded &&
@@ -1009,6 +1110,8 @@ export function PCRemoteProvider({ children }: { children: React.ReactNode }) {
     wakeTargetMode,
     lastError,
     clearError,
+    serverUpdateAdvisory,
+    dismissServerUpdateAdvisory,
     needsHostSetup,
     authRequired,
     authError,
