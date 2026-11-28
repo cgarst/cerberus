@@ -349,10 +349,6 @@ export function RoomModeCard({
               </SteamPressable>
             ) : null}
           </View>
-        ) : primaryUnavailable ? (
-          <Text style={styles.mobileHint}>
-            {`${primaryTarget.name} display is off — tap to switch when it turns on`}
-          </Text>
         ) : null}
       </View>
       {compact && pendingLabel ? (
@@ -448,11 +444,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.6,
     color: Colors.text,
-  },
-  mobileHint: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    textAlign: 'center',
   },
   pendingBanner: {
     flexDirection: 'row',
