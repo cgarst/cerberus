@@ -506,25 +506,58 @@ export function PCRemoteProvider({ children }: { children: React.ReactNode }) {
           await sendWakeOnLanPacket(s.pcMac, s.broadcastIp);
           const deadline =
             Date.now() + Math.max(10, s.wakeTimeoutSeconds) * 1000;
-          const client = new RoomAgentClient(getConfig());
 
+          let awake = false;
           while (Date.now() < deadline && !wakeCancelledRef.current) {
             await sleep(1500);
             if (wakeCancelledRef.current) break;
+            if (pcOnlineRef.current) {
+              awake = true;
+              break;
+            }
             try {
-              await client.fetchHealth(1500);
-              await client.switchMode(wakeTargetRef.current);
-              wakeActiveRef.current = false;
-              setWakeInProgress(false);
-              await refreshStatus();
-              return;
-            } catch {
-              continue;
+              await new RoomAgentClient(getConfig()).fetchHealth(2500);
+              awake = true;
+              break;
+            } catch (err) {
+              if (
+                err instanceof RoomAgentClientError &&
+                !err.isConnectivityError
+              ) {
+                awake = true;
+                break;
+              }
             }
           }
 
-          if (!wakeCancelledRef.current) {
+          if (wakeCancelledRef.current) return;
+
+          if (!awake) {
             setLastError('Timed out waiting for PC to wake up.');
+            return;
+          }
+
+          try {
+            await new RoomAgentClient(getConfig()).switchMode(
+              wakeTargetRef.current
+            );
+            wakeActiveRef.current = false;
+            setWakeInProgress(false);
+            await refreshStatus();
+          } catch (err) {
+            if (!wakeCancelledRef.current) {
+              if (
+                err instanceof RoomAgentClientError &&
+                err.kind === 'unauthorized'
+              ) {
+                await refreshStatus();
+              } else {
+                setLastError(
+                  err instanceof Error ? err.message : String(err)
+                );
+                await refreshStatus();
+              }
+            }
           }
         } catch (err) {
           if (!wakeCancelledRef.current) {
@@ -547,6 +580,10 @@ export function PCRemoteProvider({ children }: { children: React.ReactNode }) {
         demoConsoleEnvRef.current =
           mode !== 'office' ? 'virtual-desktop' : 'off';
         applyDemoTick();
+        return;
+      }
+      if (!pcOnlineRef.current) {
+        startWakeAndSwitch(mode);
         return;
       }
       setBusy(true);
