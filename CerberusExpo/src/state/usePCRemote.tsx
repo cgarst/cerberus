@@ -135,6 +135,12 @@ export function PCRemoteProvider({ children }: { children: React.ReactNode }) {
   const osdPendingRef = useRef(false);
   const wakeCancelledRef = useRef(false);
   const wakeActiveRef = useRef(false);
+  const statusInFlightRef = useRef<Promise<boolean> | null>(null);
+  const windowsInFlightRef = useRef<Promise<void> | null>(null);
+  const consecutiveFailuresRef = useRef(0);
+  const isAppActiveRef = useRef(
+    AppState.currentState === 'active' || AppState.currentState === 'unknown'
+  );
 
   const demoTickRef = useRef(0);
   const demoOsdRef = useRef(true);
@@ -247,93 +253,133 @@ export function PCRemoteProvider({ children }: { children: React.ReactNode }) {
 
   const fetchWindows = useCallback(async () => {
     if (settingsRef.current.isDemoMode) return;
-    try {
-      const list = await new RoomAgentClient(getConfig()).fetchWindows();
-      setWindows(list);
-    } catch {
-      // Keep existing list on transient error
-    }
+    if (windowsInFlightRef.current) return windowsInFlightRef.current;
+    const req = (async () => {
+      try {
+        const list = await new RoomAgentClient(getConfig()).fetchWindows();
+        setWindows(list);
+      } catch {
+        // Keep existing list on transient error
+      } finally {
+        windowsInFlightRef.current = null;
+      }
+    })();
+    windowsInFlightRef.current = req;
+    return req;
   }, [getConfig]);
 
-  const refreshStatus = useCallback(async () => {
-    if (settingsRef.current.isDemoMode) return;
-    if (settingsRef.current.pcHost.trim().length === 0) {
-      setHasCompletedInitialCheck(true);
-      setPcOnline(false);
-      setHealth(null);
-      setAuthRequired(false);
-      setLastError(null);
-      return;
-    }
-    const client = new RoomAgentClient(getConfig());
-    try {
-      const result = await client.fetchHealth(2000);
-      setHasCompletedInitialCheck(true);
-      setPcOnline(true);
-      setAuthRequired(false);
-      setAuthError(null);
-      setHealth(result);
-      const wolMac = result.wolMac?.trim();
-      if (wolMac && settingsRef.current.pcMac.trim().length === 0) {
-        updateSetting('pcMac', wolMac);
-      }
-      const wolBroadcastIp = result.wolBroadcastIp?.trim();
-      const currentBroadcast = settingsRef.current.broadcastIp.trim();
-      if (
-        wolBroadcastIp &&
-        (currentBroadcast.length === 0 || currentBroadcast === '255.255.255.255')
-      ) {
-        updateSetting('broadcastIp', wolBroadcastIp);
-      }
-      if (!shortcutsLoadedRef.current) {
-        shortcutsLoadedRef.current = true;
-        void fetchShortcuts();
-        void fetchWindows();
-      }
-    } catch (err) {
-      if (err instanceof RoomAgentClientError && err.kind === 'unauthorized') {
+  const refreshStatusInternal = useCallback(async (): Promise<boolean> => {
+    if (settingsRef.current.isDemoMode) return true;
+    if (statusInFlightRef.current) return statusInFlightRef.current;
+
+    const req = (async (): Promise<boolean> => {
+      if (settingsRef.current.pcHost.trim().length === 0) {
+        consecutiveFailuresRef.current = 0;
+        pcOnlineRef.current = false;
         setHasCompletedInitialCheck(true);
-        setPcOnline(true);
+        setPcOnline(false);
         setHealth(null);
-        setAuthRequired(true);
+        setAuthRequired(false);
         setLastError(null);
-        if (settingsRef.current.bearerToken) {
-          updateSetting('bearerToken', '');
-        }
-      } else if (
-        err instanceof RoomAgentClientError &&
-        err.kind === 'invalid_configuration'
-      ) {
-        setHasCompletedInitialCheck(true);
-        setPcOnline(false);
-        setHealth(null);
-        setLastError(err.message);
-      } else if (err instanceof RoomAgentClientError && !err.isConnectivityError) {
+        return false;
+      }
+      const client = new RoomAgentClient(getConfig());
+      try {
+        const result = await client.fetchHealth(2000);
+        consecutiveFailuresRef.current = 0;
+        pcOnlineRef.current = true;
         setHasCompletedInitialCheck(true);
         setPcOnline(true);
-        setHealth(null);
-        setLastError(err.message);
-      } else {
-        setHasCompletedInitialCheck(true);
-        setPcOnline(false);
-        setHealth(null);
-        shortcutsLoadedRef.current = false;
-        setShortcuts([]);
-        setWindows([]);
+        setAuthRequired(false);
+        setAuthError(null);
+        setHealth(result);
+        const wolMac = result.wolMac?.trim();
+        if (wolMac && settingsRef.current.pcMac.trim().length === 0) {
+          updateSetting('pcMac', wolMac);
+        }
+        const wolBroadcastIp = result.wolBroadcastIp?.trim();
+        const currentBroadcast = settingsRef.current.broadcastIp.trim();
+        if (
+          wolBroadcastIp &&
+          (currentBroadcast.length === 0 || currentBroadcast === '255.255.255.255')
+        ) {
+          updateSetting('broadcastIp', wolBroadcastIp);
+        }
+        if (!shortcutsLoadedRef.current) {
+          shortcutsLoadedRef.current = true;
+          void fetchShortcuts();
+          void fetchWindows();
+        }
+        return true;
+      } catch (err) {
+        if (err instanceof RoomAgentClientError && err.kind === 'unauthorized') {
+          consecutiveFailuresRef.current = 0;
+          pcOnlineRef.current = true;
+          setHasCompletedInitialCheck(true);
+          setPcOnline(true);
+          setHealth(null);
+          setAuthRequired(true);
+          setLastError(null);
+          if (settingsRef.current.bearerToken) {
+            updateSetting('bearerToken', '');
+          }
+          return true;
+        } else if (
+          err instanceof RoomAgentClientError &&
+          err.kind === 'invalid_configuration'
+        ) {
+          consecutiveFailuresRef.current = 0;
+          pcOnlineRef.current = false;
+          setHasCompletedInitialCheck(true);
+          setPcOnline(false);
+          setHealth(null);
+          setLastError(err.message);
+          return false;
+        } else if (err instanceof RoomAgentClientError && !err.isConnectivityError) {
+          consecutiveFailuresRef.current = 0;
+          pcOnlineRef.current = true;
+          setHasCompletedInitialCheck(true);
+          setPcOnline(true);
+          setHealth(null);
+          setLastError(err.message);
+          return true;
+        } else {
+          // Allow one transient timeout/blip when already online before wiping state.
+          consecutiveFailuresRef.current += 1;
+          if (!pcOnlineRef.current || consecutiveFailuresRef.current >= 2) {
+            pcOnlineRef.current = false;
+            setHasCompletedInitialCheck(true);
+            setPcOnline(false);
+            setHealth(null);
+            shortcutsLoadedRef.current = false;
+            setShortcuts([]);
+            setWindows([]);
+          }
+          return false;
+        }
+      } finally {
+        statusInFlightRef.current = null;
       }
-    }
+    })();
+
+    statusInFlightRef.current = req;
+    return req;
   }, [fetchShortcuts, fetchWindows, getConfig, updateSetting]);
+
+  const refreshStatus = useCallback(async () => {
+    await refreshStatusInternal();
+  }, [refreshStatusInternal]);
 
   const refreshNow = useCallback(async () => {
     if (settingsRef.current.isDemoMode) {
       applyDemoTick();
       return;
     }
-    await refreshStatus();
-    if (pcOnlineRef.current) {
+    const online = await refreshStatusInternal();
+    if (online) {
       await Promise.all([fetchShortcuts(), fetchWindows()]);
     }
-  }, [applyDemoTick, fetchShortcuts, fetchWindows, refreshStatus]);
+  }, [applyDemoTick, fetchShortcuts, fetchWindows, refreshStatusInternal]);
 
   useEffect(() => {
     if (!settingsLoaded) return;
@@ -345,16 +391,18 @@ export function PCRemoteProvider({ children }: { children: React.ReactNode }) {
       return () => clearInterval(id);
     }
 
-    void refreshStatus();
+    void refreshStatusInternal();
     const healthTimer = setInterval(() => {
-      void refreshStatus();
-    }, 3000);
+      if (isAppActiveRef.current) {
+        void refreshStatusInternal();
+      }
+    }, 1500);
 
     const windowsTimer = setInterval(() => {
-      if (pcOnlineRef.current && !busyRef.current) {
+      if (isAppActiveRef.current && pcOnlineRef.current && !busyRef.current) {
         void fetchWindows();
       }
-    }, 6000);
+    }, 3000);
 
     return () => {
       clearInterval(healthTimer);
@@ -367,25 +415,57 @@ export function PCRemoteProvider({ children }: { children: React.ReactNode }) {
     settings.pcPort,
     settings.bearerToken,
     applyDemoTick,
-    refreshStatus,
+    refreshStatusInternal,
     fetchWindows,
   ]);
 
   useEffect(() => {
-    const sub = AppState.addEventListener('change', (nextState: AppStateStatus) => {
-      if (nextState === 'active' && settingsLoaded && !settingsRef.current.isDemoMode) {
-        void refreshStatus().then(() => {
-          if (pcOnlineRef.current && !busyRef.current) {
+    const triggerActiveRefresh = () => {
+      isAppActiveRef.current = true;
+      if (settingsLoaded && !settingsRef.current.isDemoMode) {
+        void refreshStatusInternal().then((online) => {
+          if (online && !busyRef.current) {
             void fetchWindows();
           }
         });
       }
+    };
+
+    const sub = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      if (nextState === 'active') {
+        triggerActiveRefresh();
+      } else {
+        isAppActiveRef.current = false;
+      }
     });
+
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      const onFocus = () => triggerActiveRefresh();
+      const onVisibilityChange = () => {
+        if (typeof document !== 'undefined' && !document.hidden) {
+          triggerActiveRefresh();
+        } else {
+          isAppActiveRef.current = false;
+        }
+      };
+      window.addEventListener('focus', onFocus);
+      if (typeof document !== 'undefined') {
+        document.addEventListener('visibilitychange', onVisibilityChange);
+      }
+      return () => {
+        sub.remove();
+        window.removeEventListener('focus', onFocus);
+        if (typeof document !== 'undefined') {
+          document.removeEventListener('visibilitychange', onVisibilityChange);
+        }
+      };
+    }
+
     return () => sub.remove();
-  }, [settingsLoaded, refreshStatus, fetchWindows]);
+  }, [settingsLoaded, refreshStatusInternal, fetchWindows]);
 
   const performAction = useCallback(
-    async (op: () => Promise<void>) => {
+    async (op: () => Promise<void>, options?: { refreshWindowsAfter?: boolean }) => {
       setBusy(true);
       setLastError(null);
       try {
@@ -394,10 +474,14 @@ export function PCRemoteProvider({ children }: { children: React.ReactNode }) {
         setLastError(err instanceof Error ? err.message : String(err));
       } finally {
         setBusy(false);
-        await refreshStatus();
+        const online = await refreshStatusInternal();
+        if (options?.refreshWindowsAfter && online) {
+          await sleep(400);
+          await fetchWindows();
+        }
       }
     },
-    [refreshStatus]
+    [fetchWindows, refreshStatusInternal]
   );
 
   const startWakeAndSwitch = useCallback(
@@ -470,7 +554,10 @@ export function PCRemoteProvider({ children }: { children: React.ReactNode }) {
       try {
         await new RoomAgentClient(getConfig()).switchMode(mode);
         setBusy(false);
-        await refreshStatus();
+        const online = await refreshStatusInternal();
+        if (online) {
+          void fetchWindows();
+        }
       } catch (err) {
         setBusy(false);
         if (err instanceof RoomAgentClientError && err.isConnectivityError) {
@@ -481,7 +568,7 @@ export function PCRemoteProvider({ children }: { children: React.ReactNode }) {
         }
       }
     },
-    [getConfig, refreshStatus, startWakeAndSwitch]
+    [fetchWindows, getConfig, refreshStatusInternal, startWakeAndSwitch]
   );
 
   const switchWakeTarget = useCallback((mode: string) => {
@@ -515,8 +602,9 @@ export function PCRemoteProvider({ children }: { children: React.ReactNode }) {
         applyDemoTick();
         return;
       }
-      await performAction(() =>
-        new RoomAgentClient(getConfig()).stopStreaming(targetMode)
+      await performAction(
+        () => new RoomAgentClient(getConfig()).stopStreaming(targetMode),
+        { refreshWindowsAfter: true }
       );
     },
     [getConfig, performAction]
@@ -628,8 +716,9 @@ export function PCRemoteProvider({ children }: { children: React.ReactNode }) {
         }
         return;
       }
-      await performAction(() =>
-        new RoomAgentClient(getConfig()).launchShortcut(shortcut.path)
+      await performAction(
+        () => new RoomAgentClient(getConfig()).launchShortcut(shortcut.path),
+        { refreshWindowsAfter: true }
       );
     },
     [getConfig, performAction]
@@ -638,8 +727,9 @@ export function PCRemoteProvider({ children }: { children: React.ReactNode }) {
   const focusWindow = useCallback(
     async (win: OpenWindow) => {
       if (settingsRef.current.isDemoMode) return;
-      await performAction(() =>
-        new RoomAgentClient(getConfig()).focusWindow(win.hwnd)
+      await performAction(
+        () => new RoomAgentClient(getConfig()).focusWindow(win.hwnd),
+        { refreshWindowsAfter: true }
       );
     },
     [getConfig, performAction]
@@ -678,8 +768,9 @@ export function PCRemoteProvider({ children }: { children: React.ReactNode }) {
 
   const openTaskView = useCallback(async () => {
     if (settingsRef.current.isDemoMode) return;
-    await performAction(() =>
-      new RoomAgentClient(getConfig()).openTaskView()
+    await performAction(
+      () => new RoomAgentClient(getConfig()).openTaskView(),
+      { refreshWindowsAfter: true }
     );
   }, [getConfig, performAction]);
 

@@ -1,7 +1,7 @@
-import React, { useEffect, useLayoutEffect } from 'react';
+import React, { useCallback, useLayoutEffect } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Stack, useNavigation } from 'expo-router';
+import { Stack, useFocusEffect, useNavigation } from 'expo-router';
 import { SteamPressable } from '../src/components/SteamSurface';
 import { WindowsPanel } from '../src/components/WindowsPanel';
 import { usePCRemote } from '../src/state/usePCRemote';
@@ -34,11 +34,14 @@ export default function WindowsScreen() {
     });
   }, [navigation, vm]);
 
-  useEffect(() => {
-    if (vm.pcOnline) {
-      void vm.fetchWindows();
-    }
-  }, [vm.pcOnline, vm.fetchWindows]);
+  const { pcOnline, fetchWindows } = vm;
+  useFocusEffect(
+    useCallback(() => {
+      if (pcOnline) {
+        void fetchWindows();
+      }
+    }, [pcOnline, fetchWindows])
+  );
 
   return (
     <>

@@ -1,7 +1,7 @@
-import React, { useEffect, useLayoutEffect } from 'react';
+import React, { useCallback, useLayoutEffect } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Stack, useNavigation } from 'expo-router';
+import { Stack, useFocusEffect, useNavigation } from 'expo-router';
 import { ShortcutsPanel } from '../src/components/ShortcutsPanel';
 import { SteamPressable } from '../src/components/SteamSurface';
 import { usePCRemote } from '../src/state/usePCRemote';
@@ -34,11 +34,14 @@ export default function ShortcutsScreen() {
     });
   }, [navigation, vm]);
 
-  useEffect(() => {
-    if (vm.pcOnline) {
-      void vm.fetchShortcuts();
-    }
-  }, [vm.pcOnline, vm.fetchShortcuts]);
+  const { pcOnline, fetchShortcuts } = vm;
+  useFocusEffect(
+    useCallback(() => {
+      if (pcOnline) {
+        void fetchShortcuts();
+      }
+    }, [pcOnline, fetchShortcuts])
+  );
 
   return (
     <>
