@@ -12,7 +12,10 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.cerberus.app",
       "infoPlist": {
-        "NSLocalNetworkUsageDescription": "Cerberus needs local network access to communicate with CerberusService and send Wake-on-LAN packets."
+        "NSLocalNetworkUsageDescription": "Cerberus needs local network access to communicate with CerberusService and send Wake-on-LAN packets.",
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        }
       }
     },
     "android": {

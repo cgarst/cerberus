@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -40,7 +40,11 @@ export default function HomeScreen() {
   const backendHeroUrl = vm.pcOnline
     ? vm.health?.metrics?.frameAppHeroUrl
     : null;
-  const [failedHeroUri, setFailedHeroUri] = useState<string | null>(null);
+  const [failedHeroKey, setFailedHeroKey] = useState<string | null>(null);
+  const [webAuthHeroUri, setWebAuthHeroUri] = useState<{
+    sourceKey: string;
+    objectUrl: string;
+  } | null>(null);
   const [heroImageAspect, setHeroImageAspect] = useState<{
     uri: string;
     ratio: number;
@@ -65,40 +69,109 @@ export default function HomeScreen() {
       ? getCachedSteamHeroArt(runningGameName)
       : null;
 
+  const bearerToken = vm.bearerToken.trim();
+  const isBackendHero = Boolean(resolvedBackendHeroUrl);
   const heroCandidateUri = resolvedBackendHeroUrl
     ? resolvedBackendHeroUrl
     : demoHeroArt
-    ? failedHeroUri === demoHeroArt.heroUrl
+    ? failedHeroKey === `${demoHeroArt.heroUrl}|`
       ? demoHeroArt.headerUrl
       : demoHeroArt.heroUrl
     : null;
 
+  const heroAuthToken = isBackendHero ? bearerToken : '';
+  const heroRequestKey = heroCandidateUri
+    ? `${heroCandidateUri}|${heroAuthToken}`
+    : null;
   const heroUri =
-    heroCandidateUri && failedHeroUri !== heroCandidateUri
+    heroCandidateUri && heroRequestKey !== failedHeroKey
       ? heroCandidateUri
       : null;
-  const activeHeroAspectRatio =
-    heroUri && heroImageAspect?.uri === heroUri ? heroImageAspect.ratio : null;
+  const heroHeaders = useMemo(
+    () =>
+      heroUri && isBackendHero && bearerToken
+        ? { Authorization: `Bearer ${bearerToken}` }
+        : undefined,
+    [heroUri, isBackendHero, bearerToken]
+  );
 
   useEffect(() => {
-    if (!heroUri) return;
-    let cancelled = false;
-    Image.getSize(
-      heroUri,
-      (imgWidth, imgHeight) => {
-        if (!cancelled && imgWidth > 0 && imgHeight > 0) {
-          setHeroImageAspect({
-            uri: heroUri,
-            ratio: imgWidth / imgHeight,
-          });
+    if (Platform.OS !== 'web' || !heroUri || !isBackendHero || !bearerToken) {
+      return;
+    }
+
+    const sourceKey = `${heroUri}|${bearerToken}`;
+    const controller = new AbortController();
+    let activeObjectUrl: string | null = null;
+
+    fetch(heroUri, {
+      headers: { Authorization: `Bearer ${bearerToken}` },
+      signal: controller.signal,
+    })
+      .then((resp) => {
+        if (!resp.ok) {
+          throw new Error(`HTTP ${resp.status}`);
         }
-      },
-      () => {}
-    );
+        return resp.blob();
+      })
+      .then((blob) => {
+        if (controller.signal.aborted) return;
+        activeObjectUrl = URL.createObjectURL(blob);
+        setWebAuthHeroUri({ sourceKey, objectUrl: activeObjectUrl });
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setWebAuthHeroUri(null);
+          setFailedHeroKey(sourceKey);
+        }
+      });
+
+    return () => {
+      controller.abort();
+      if (activeObjectUrl) {
+        URL.revokeObjectURL(activeObjectUrl);
+      }
+    };
+  }, [heroUri, isBackendHero, bearerToken]);
+
+  const displayHeroUri =
+    Platform.OS === 'web' && isBackendHero && bearerToken
+      ? webAuthHeroUri &&
+        heroUri &&
+        webAuthHeroUri.sourceKey === `${heroUri}|${bearerToken}`
+        ? webAuthHeroUri.objectUrl
+        : null
+      : heroUri;
+
+  const activeHeroAspectRatio =
+    displayHeroUri && heroImageAspect?.uri === displayHeroUri
+      ? heroImageAspect.ratio
+      : null;
+
+  useEffect(() => {
+    if (!displayHeroUri) return;
+    let cancelled = false;
+    const onSize = (imgWidth: number, imgHeight: number) => {
+      if (!cancelled && imgWidth > 0 && imgHeight > 0) {
+        setHeroImageAspect({
+          uri: displayHeroUri,
+          ratio: imgWidth / imgHeight,
+        });
+      }
+    };
+    if (
+      Platform.OS !== 'web' &&
+      heroHeaders &&
+      typeof Image.getSizeWithHeaders === 'function'
+    ) {
+      Image.getSizeWithHeaders(displayHeroUri, heroHeaders, onSize, () => {});
+    } else {
+      Image.getSize(displayHeroUri, onSize, () => {});
+    }
     return () => {
       cancelled = true;
     };
-  }, [heroUri]);
+  }, [displayHeroUri, heroHeaders]);
 
   useLayoutEffect(() => {
     if (Platform.OS === 'ios') return;
@@ -201,9 +274,13 @@ export default function HomeScreen() {
       >
         {/* Steam Library Hero Header */}
         <View style={styles.heroBanner}>
-          {heroUri ? (
+          {displayHeroUri ? (
             <Image
-              source={{ uri: heroUri }}
+              source={
+                Platform.OS !== 'web' && heroHeaders
+                  ? { uri: displayHeroUri, headers: heroHeaders }
+                  : { uri: displayHeroUri }
+              }
               style={[
                 styles.heroImage,
                 activeHeroAspectRatio
@@ -226,21 +303,25 @@ export default function HomeScreen() {
                   0;
                 if (width > 0 && height > 0) {
                   setHeroImageAspect({
-                    uri: heroUri,
+                    uri: displayHeroUri,
                     ratio: width / height,
                   });
                 }
               }}
-              onError={() => setFailedHeroUri(heroUri)}
+              onError={() => {
+                if (heroRequestKey) {
+                  setFailedHeroKey(heroRequestKey);
+                }
+              }}
             />
           ) : null}
           <LinearGradient
-            colors={heroUri ? heroImageOverlayColors : heroGradientColors}
+            colors={displayHeroUri ? heroImageOverlayColors : heroGradientColors}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={[
               styles.heroGradient,
-              heroUri ? styles.heroGradientWithArt : null,
+              displayHeroUri ? styles.heroGradientWithArt : null,
             ]}
           >
             {vm.isDemoMode || !vm.pcOnline ? (
