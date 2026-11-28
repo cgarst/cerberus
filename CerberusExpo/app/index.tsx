@@ -399,15 +399,36 @@ export default function HomeScreen() {
             <View style={styles.warningTextWrap}>
               <Text style={styles.warningTitle}>Server Update Required</Text>
               <Text style={styles.warningText}>
-                {vm.serverUpdateAdvisory.message}
+                {vm.serverUpdateProgress ?? vm.serverUpdateAdvisory.message}
               </Text>
             </View>
-            <SteamPressable
-              onPress={vm.dismissServerUpdateAdvisory}
-              hitSlop={8}
-            >
-              <Ionicons name="close" size={16} color={Colors.textSecondary} />
-            </SteamPressable>
+            {vm.serverUpdateAdvisory.canInstallUpdate ? (
+              <SteamPressable
+                onPress={() => {
+                  triggerHaptic('medium');
+                  void vm.updateServerNow();
+                }}
+                disabled={vm.serverUpdating}
+                style={[
+                  styles.warningActionBtn,
+                  vm.serverUpdating && styles.warningActionBtnDisabled,
+                ]}
+              >
+                {vm.serverUpdating ? (
+                  <ActivityIndicator size="small" color={Colors.textBright} />
+                ) : (
+                  <Text style={styles.warningActionText}>Update</Text>
+                )}
+              </SteamPressable>
+            ) : null}
+            {!vm.serverUpdating ? (
+              <SteamPressable
+                onPress={vm.dismissServerUpdateAdvisory}
+                hitSlop={8}
+              >
+                <Ionicons name="close" size={16} color={Colors.textSecondary} />
+              </SteamPressable>
+            ) : null}
           </View>
         ) : null}
 
@@ -992,6 +1013,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.text,
     lineHeight: 17,
+  },
+  warningActionBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: Radii.xs,
+    backgroundColor: Colors.orange,
+    minWidth: 64,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  warningActionBtnDisabled: {
+    opacity: 0.7,
+  },
+  warningActionText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.textBright,
   },
   offlineContainer: {
     gap: 10,

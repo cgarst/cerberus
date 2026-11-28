@@ -115,7 +115,13 @@ export interface OsdResponse {
 
 export interface UpdateStatusResponse {
   status?: string | null;
+  Status?: string | null;
   currentVersion?: string | null;
+  CurrentVersion?: string | null;
+  downloadProgressPercent?: number | null;
+  DownloadProgressPercent?: number | null;
+  errorMessage?: string | null;
+  ErrorMessage?: string | null;
 }
 
 export interface ApiErrorResponse {

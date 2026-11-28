@@ -44,6 +44,7 @@ export interface ServerUpdateAdvisory {
   clientVersion: string;
   serverVersion: string | null;
   message: string;
+  canInstallUpdate: boolean;
 }
 
 interface PCRemoteContextValue {
@@ -72,6 +73,9 @@ interface PCRemoteContextValue {
   clearError: () => void;
   serverUpdateAdvisory: ServerUpdateAdvisory | null;
   dismissServerUpdateAdvisory: () => void;
+  serverUpdating: boolean;
+  serverUpdateProgress: string | null;
+  updateServerNow: () => Promise<void>;
   needsHostSetup: boolean;
   authRequired: boolean;
   authError: string | null;
@@ -137,6 +141,10 @@ export function PCRemoteProvider({ children }: { children: React.ReactNode }) {
   const [serverVersion, setServerVersion] = useState<string | null>(null);
   const [legacyServerDetected, setLegacyServerDetected] = useState(false);
   const [updateAdvisoryDismissed, setUpdateAdvisoryDismissed] = useState(false);
+  const [serverUpdating, setServerUpdating] = useState(false);
+  const [serverUpdateProgress, setServerUpdateProgress] = useState<string | null>(
+    null
+  );
 
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
@@ -333,7 +341,7 @@ export function PCRemoteProvider({ children }: { children: React.ReactNode }) {
             .fetchUpdateStatus(3000)
             .then((upd) => {
               if (updateProbeTargetRef.current !== targetKey) return;
-              const ver = upd?.currentVersion?.trim();
+              const ver = (upd?.CurrentVersion ?? upd?.currentVersion)?.trim();
               if (ver) {
                 setServerVersion(ver);
                 setLegacyServerDetected(false);
@@ -985,10 +993,13 @@ export function PCRemoteProvider({ children }: { children: React.ReactNode }) {
       return null;
     }
     const clientVersion = getClientVersion();
+    const isPasswordAuthed =
+      Boolean(health?.authEnabled) && settings.bearerToken.trim().length > 0;
     if (legacyServerDetected) {
       return {
         clientVersion,
         serverVersion: null,
+        canInstallUpdate: false,
         message: clientVersion
           ? `CerberusService on your PC is running an older version and requires an update (client v${clientVersion}).`
           : 'CerberusService on your PC is running an older version and requires an update.',
@@ -1003,17 +1014,116 @@ export function PCRemoteProvider({ children }: { children: React.ReactNode }) {
       return {
         clientVersion,
         serverVersion: normServer,
+        canInstallUpdate: isPasswordAuthed,
         message: `CerberusService on your PC (v${normServer}) is older than this client (v${clientVersion}) and requires an update.`,
       };
     }
     return null;
   }, [
+    health?.authEnabled,
     legacyServerDetected,
     pcOnline,
     serverVersion,
+    settings.bearerToken,
     settings.isDemoMode,
     updateAdvisoryDismissed,
   ]);
+
+  const updateServerNow = useCallback(async () => {
+    if (
+      settingsRef.current.isDemoMode ||
+      !pcOnlineRef.current ||
+      !health?.authEnabled ||
+      settingsRef.current.bearerToken.trim().length === 0 ||
+      serverUpdating
+    ) {
+      return;
+    }
+
+    const client = new RoomAgentClient(getConfig());
+    setServerUpdating(true);
+    setServerUpdateProgress('Checking for update...');
+    setLastError(null);
+
+    try {
+      const checkSnap = await client.checkForUpdates(15000);
+      let status = (checkSnap.Status ?? checkSnap.status ?? '').toLowerCase();
+
+      if (status === 'uptodate') {
+        setLastError('No newer CerberusService release is published yet.');
+        return;
+      }
+
+      if (status === 'error') {
+        setLastError(
+          checkSnap.ErrorMessage ??
+            checkSnap.errorMessage ??
+            'Failed to check for CerberusService updates.'
+        );
+        return;
+      }
+
+      if (status === 'updateavailable') {
+        setServerUpdateProgress('Starting silent update...');
+        await client.installUpdate(10000);
+        status = 'downloading';
+      }
+
+      if (status === 'downloading' || status === 'installing') {
+        for (let i = 0; i < 60; i++) {
+          if (status === 'installing') {
+            setServerUpdateProgress(
+              'Installing update — CerberusService will restart...'
+            );
+            await sleep(2500);
+            break;
+          }
+          await sleep(1000);
+          try {
+            const snap = await client.fetchUpdateStatus(3000);
+            status = (snap.Status ?? snap.status ?? '').toLowerCase();
+            if (status === 'downloading') {
+              const pct =
+                snap.DownloadProgressPercent ?? snap.downloadProgressPercent ?? 0;
+              setServerUpdateProgress(`Downloading update (${pct}%)...`);
+            } else if (status === 'installing') {
+              setServerUpdateProgress(
+                'Installing update — CerberusService will restart...'
+              );
+              await sleep(2500);
+              break;
+            } else if (status === 'error') {
+              setLastError(
+                snap.ErrorMessage ??
+                  snap.errorMessage ??
+                  'CerberusService update failed.'
+              );
+              break;
+            } else if (status === 'uptodate' || status === 'idle') {
+              break;
+            }
+          } catch (pollErr) {
+            if (
+              pollErr instanceof RoomAgentClientError &&
+              pollErr.isConnectivityError
+            ) {
+              setServerUpdateProgress(
+                'Installing update — CerberusService is restarting...'
+              );
+              await sleep(2000);
+              break;
+            }
+            throw pollErr;
+          }
+        }
+      }
+    } catch (err) {
+      setLastError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setServerUpdating(false);
+      setServerUpdateProgress(null);
+    }
+  }, [getConfig, health?.authEnabled, serverUpdating]);
 
   const needsHostSetup =
     settingsLoaded &&
@@ -1112,6 +1222,9 @@ export function PCRemoteProvider({ children }: { children: React.ReactNode }) {
     clearError,
     serverUpdateAdvisory,
     dismissServerUpdateAdvisory,
+    serverUpdating,
+    serverUpdateProgress,
+    updateServerNow,
     needsHostSetup,
     authRequired,
     authError,

@@ -153,6 +153,14 @@ export class RoomAgentClient {
     return this.request<UpdateStatusResponse>('GET', '/api/update', undefined, timeoutMs);
   }
 
+  async checkForUpdates(timeoutMs = 15000): Promise<UpdateStatusResponse> {
+    return this.request<UpdateStatusResponse>('POST', '/api/update/check', undefined, timeoutMs);
+  }
+
+  async installUpdate(timeoutMs = 10000): Promise<void> {
+    await this.request<unknown>('POST', '/api/update/install', undefined, timeoutMs);
+  }
+
   async switchMode(
     profileId: string,
     consoleEnvironmentMode?: string

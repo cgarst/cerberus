@@ -436,6 +436,11 @@ namespace RoomAgent
 
                 if (method == "POST" && path == "/api/update/install")
                 {
+                    if (!AuthService.IsAuthEnabled(_config))
+                    {
+                        WriteJson(res, 403, "{\"error\":\"auth_required_for_update\"}");
+                        return;
+                    }
                     if (_updateService == null)
                     {
                         WriteJson(res, 503, "{\"error\":\"update_service_unavailable\"}");
