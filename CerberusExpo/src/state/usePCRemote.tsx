@@ -703,9 +703,9 @@ export function PCRemoteProvider({ children }: { children: React.ReactNode }) {
     async (targetMode: string) => {
       if (settingsRef.current.isDemoMode) {
         demoStreamingRef.current = false;
-        demoModeRef.current = targetMode;
+        demoModeRef.current = targetMode || 'office';
         demoConsoleEnvRef.current =
-          targetMode !== 'office' ? 'virtual-desktop' : 'off';
+          !targetMode || targetMode === 'office' ? 'off' : 'virtual-desktop';
         applyDemoTick();
         return;
       }

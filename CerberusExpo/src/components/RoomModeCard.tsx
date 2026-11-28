@@ -135,15 +135,11 @@ export function RoomModeCard({
             <PrimaryActionButton
               variant="blue"
               icon="close"
-              label={
-                defaultUnavailable
-                  ? `${defaultProfile.name.toUpperCase()} UNAVAILABLE`
-                  : 'EXIT STREAM'
-              }
-              disabled={busy || defaultUnavailable}
+              label="EXIT STREAM"
+              disabled={busy}
               onPress={() => {
                 triggerHaptic('medium');
-                onStopStreaming(defaultProfile.id);
+                onStopStreaming(defaultUnavailable ? '' : defaultProfile.id);
               }}
               style={!compact && styles.fullWidthBtn}
             />
