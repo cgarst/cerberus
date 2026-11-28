@@ -61,7 +61,7 @@ export default function RootLayout() {
           <Stack.Screen
             name="settings"
             options={{
-              title: 'SETTINGS',
+              title: 'Settings',
               presentation: 'modal',
               ...(Platform.OS === 'ios'
                 ? {
