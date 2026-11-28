@@ -40,17 +40,21 @@ export default function RootLayout() {
           <Stack.Screen
             name="index"
             options={{
-              title: 'Cerberus',
-              headerTitle: () => (
-                <View style={styles.headerTitleRow}>
-                  <Image
-                    source={require('../assets/icon.png')}
-                    style={styles.headerIcon}
-                    resizeMode="contain"
-                  />
-                  <Text style={styles.headerTitleText}>Cerberus</Text>
-                </View>
-              ),
+              title: Platform.OS === 'ios' ? '' : 'Cerberus',
+              ...(Platform.OS !== 'ios'
+                ? {
+                    headerTitle: () => (
+                      <View style={styles.headerTitleRow}>
+                        <Image
+                          source={require('../assets/icon.png')}
+                          style={styles.headerIcon}
+                          resizeMode="contain"
+                        />
+                        <Text style={styles.headerTitleText}>Cerberus</Text>
+                      </View>
+                    ),
+                  }
+                : null),
             }}
           />
           <Stack.Screen

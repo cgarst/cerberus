@@ -268,30 +268,44 @@ export default function HomeScreen() {
   return (
     <>
       {Platform.OS === 'ios' && (
-        <Stack.Toolbar placement="right">
-          <Stack.Toolbar.Button
-            icon="computermouse"
-            accessibilityLabel="Remote Input"
-            tintColor={remoteInputEnabled ? undefined : Colors.textMuted}
-            onPress={handleOpenRemoteInput}
-          />
-          <Stack.Toolbar.Button
-            icon="arrow.clockwise"
-            accessibilityLabel="Refresh"
-            onPress={() => {
-              triggerHaptic('light');
-              void vm.refreshNow();
-            }}
-          />
-          <Stack.Toolbar.Button
-            icon="gearshape"
-            accessibilityLabel="Settings"
-            onPress={() => {
-              triggerHaptic('light');
-              router.push('/settings');
-            }}
-          />
-        </Stack.Toolbar>
+        <>
+          <Stack.Toolbar placement="left">
+            <Stack.Toolbar.View hidesSharedBackground>
+              <View style={styles.headerTitleRow}>
+                <Image
+                  source={require('../assets/icon.png')}
+                  style={styles.headerIcon}
+                  resizeMode="contain"
+                />
+                <Text style={styles.headerTitleText}>Cerberus</Text>
+              </View>
+            </Stack.Toolbar.View>
+          </Stack.Toolbar>
+          <Stack.Toolbar placement="right">
+            <Stack.Toolbar.Button
+              icon="computermouse"
+              accessibilityLabel="Remote Input"
+              tintColor={remoteInputEnabled ? undefined : Colors.textMuted}
+              onPress={handleOpenRemoteInput}
+            />
+            <Stack.Toolbar.Button
+              icon="arrow.clockwise"
+              accessibilityLabel="Refresh"
+              onPress={() => {
+                triggerHaptic('light');
+                void vm.refreshNow();
+              }}
+            />
+            <Stack.Toolbar.Button
+              icon="gearshape"
+              accessibilityLabel="Settings"
+              onPress={() => {
+                triggerHaptic('light');
+                router.push('/settings');
+              }}
+            />
+          </Stack.Toolbar>
+        </>
       )}
       <ScrollView
       style={styles.scroll}
@@ -895,6 +909,21 @@ const styles = StyleSheet.create({
   },
   flexOne: { flex: 1 },
   disabled: { opacity: 0.45 },
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  headerIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 5,
+  },
+  headerTitleText: {
+    color: Colors.textBright,
+    fontWeight: '700',
+    fontSize: 16,
+  },
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
